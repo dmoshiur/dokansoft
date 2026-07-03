@@ -34,7 +34,7 @@ const authLimiter = rateLimit({
 
 async function startServer() {
   const app = express();
-  
+
   app.use(express.json({ limit: "20mb" }));
   app.use(express.urlencoded({ extended: true, limit: "20mb" }));
   // app.use(limiter);
@@ -54,7 +54,12 @@ async function startServer() {
 
   // Initialize services
   connectToWhatsApp().catch(console.error);
-  startWorker();
+  try {
+  console.log("[Queue] Worker disabled.");
+  // startWorker();
+} catch (err) {
+  console.error("[Queue Error]", err);
+}
   
   // Load settings and init voice provider
   const settings = await repository.getSettings();
