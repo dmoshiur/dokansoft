@@ -1,0 +1,6 @@
+{
+  "name": "Lovely Enterprise ERP",
+  "description": "Full-stack ERP & Digital HalKhata platform with advanced voice communication, automated campaigns, and secure credit management for M/S Lovely Enterprise.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
