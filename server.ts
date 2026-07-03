@@ -1999,9 +1999,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Lovely Enterprise Server running on http://localhost:${PORT}`);
-  });
+const PORT = Number(process.env.PORT) || 3000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Lovely Enterprise Server running on port ${PORT}`);
+});
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Server startup failed:", err);
+  process.exit(1);
+});
