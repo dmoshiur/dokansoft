@@ -58,7 +58,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, s
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { state } = useERPStore();
-  
+
+  const shopName = state.config?.shopName || "M/S Mahi and Muhi Traders";
+  const brandShort = shopName.toUpperCase().includes("MAHI") ? "Mahi & Muhi Traders" : shopName;
+  const monogram = brandShort.replace(/[^A-Za-z]/g, "").substring(0, 2).toUpperCase() || "MM";
+
   const menuItems = getMenuItems(role);
 
   const getActiveUser = () => {
@@ -124,12 +128,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, s
               animate={{ opacity: 1 }}
               className="flex items-center gap-2 font-bold text-xl text-emerald-600 tracking-tight"
             >
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white">L</div>
-              <span>Lovely ERP</span>
+              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white text-sm font-black">{monogram}</div>
+              <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[170px]">{brandShort}</span>
             </motion.div>
           )}
           {isCollapsed && (
-             <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">L</div>
+             <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-base">{monogram}</div>
           )}
         </div>
 
@@ -260,8 +264,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, s
             >
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2 font-bold text-xl text-emerald-600">
-                  <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white">L</div>
-                  <span>Lovely ERP</span>
+                  <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white text-sm font-black">{monogram}</div>
+                  <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[170px]">{brandShort}</span>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
                   <X size={20} />

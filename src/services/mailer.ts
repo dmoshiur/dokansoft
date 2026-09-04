@@ -150,7 +150,7 @@ export function getResponsiveTemplate(title: string, bodyContent: string, ctaHtm
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <h1 class="logo">M/S Lovely Enterprise</h1>
+        <h1 class="logo">M/S Mahi and Muhi Traders</h1>
         <div class="subtitle">PREMIUM CLOUD PLATFORM</div>
       </div>
       <div class="content">
@@ -159,8 +159,8 @@ export function getResponsiveTemplate(title: string, bodyContent: string, ctaHtm
       </div>
       <div class="footer">
         <p>This is an automated security system notification.</p>
-        <p>If you have any questions, contact our support desk at <a href="mailto:mdmoshiurrahmanmohi1@gmail.com">mdmoshiurrahmanmohi1@gmail.com</a></p>
-        <p>&copy; 2026 M/S Lovely Enterprise. All rights reserved.</p>
+        <p>If you have any questions, contact our support desk at <a href="mailto:abumasumpunot@gmail.com">abumasumpunot@gmail.com</a></p>
+        <p>&copy; 2026 M/S Mahi and Muhi Traders. All rights reserved.</p>
       </div>
     </div>
   </div>
@@ -180,7 +180,7 @@ export class Mailer {
     const port = parseInt(settings.smtpPort || process.env.SMTP_PORT || "587");
     const user = settings.smtpUsername || process.env.SMTP_USER || "";
     const pass = settings.smtpPassword || process.env.SMTP_PASS || "";
-    const fromName = settings.smtpFromName || process.env.SMTP_FROM_NAME || "Lovely Enterprise";
+    const fromName = settings.smtpFromName || process.env.SMTP_FROM_NAME || "M/S Mahi and Muhi Traders";
     const fromEmail = settings.smtpFromEmail || process.env.SMTP_FROM_EMAIL || user;
 
     if (!host || !user || !pass) {
@@ -194,7 +194,7 @@ export class Mailer {
           console.log("=========================================");
           return { messageId: "dev-mode-mock-id-" + Date.now() };
         },
-        fromInfo: `"${fromName}" <${fromEmail || "no-reply@lovelyenterprise.com"}>`
+        fromInfo: `"${fromName}" <${fromEmail || "no-reply@mahimuhitraders.com"}>`
       };
     }
 
@@ -252,7 +252,7 @@ export class Mailer {
     const host = gateway.host || "";
     const user = gateway.username || "";
     const pass = gateway.password || "";
-    const fromName = gateway.fromName || "Lovely Enterprise";
+    const fromName = gateway.fromName || "M/S Mahi and Muhi Traders";
     const fromEmail = gateway.fromEmail || user;
 
     if (!host || !user || !pass) {
@@ -265,7 +265,7 @@ export class Mailer {
           console.log("=========================================");
           return { messageId: "dev-mode-mock-id-" + Date.now() };
         },
-        fromInfo: `"${fromName}" <${fromEmail || "no-reply@lovelyenterprise.com"}>`,
+        fromInfo: `"${fromName}" <${fromEmail || "no-reply@mahimuhitraders.com"}>`,
       };
     }
 
@@ -302,7 +302,7 @@ export class Mailer {
         },
         body: JSON.stringify({
           personalizations: [{ to: [{ email: options.to }] }],
-          from: { email: gateway.fromEmail || "no-reply@lovelyenterprise.com", name: gateway.fromName || "Lovely Enterprise" },
+          from: { email: gateway.fromEmail || "no-reply@mahimuhitraders.com", name: gateway.fromName || "M/S Mahi and Muhi Traders" },
           subject: options.subject,
           content: [{ type: options.html ? "text/html" : "text/plain", value: options.html || options.text || "" }],
         }),
@@ -315,7 +315,7 @@ export class Mailer {
     const body = JSON.stringify({
       to: options.to,
       subject: options.subject,
-      from: `${gateway.fromName || "Lovely Enterprise"} <${gateway.fromEmail || "no-reply@lovelyenterprise.com"}>`,
+      from: `${gateway.fromName || "M/S Mahi and Muhi Traders"} <${gateway.fromEmail || "no-reply@mahimuhitraders.com"}>`,
       html: options.html,
       text: options.text || "",
     });
@@ -336,7 +336,7 @@ export class Mailer {
     const bodyContent = `
       <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 16px;">Admin Verification Request</h2>
       <p style="font-size: 15px; color: #374151; line-height: 1.6; margin-bottom: 24px;">
-        A security verification procedure was initiated for your administrator account on <strong>M/S Lovely Enterprise ERP</strong>. Please use the verification code below to complete your login.
+        A security verification procedure was initiated for your administrator account on <strong>M/S Mahi and Muhi Traders</strong>. Please use the verification code below to complete your login.
       </p>
       
       <p style="font-size: 14px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; text-align: center;">
@@ -375,7 +375,7 @@ export class Mailer {
     const bodyContent = `
       <h2>Password Reset Instructions</h2>
       <p>Hello,</p>
-      <p>We received a request to reset the password for your account on <strong>M/S Lovely Enterprise ERP</strong>.</p>
+      <p>We received a request to reset the password for your account on <strong>M/S Mahi and Muhi Traders</strong>.</p>
       <p>You can reset your password by clicking the secure button below. This link will be active for 1 hour.</p>
     `;
     const ctaHtml = `
@@ -386,7 +386,7 @@ export class Mailer {
     const html = getResponsiveTemplate(title, bodyContent, ctaHtml);
     return {
       to: email,
-      subject: "[Security] Password Reset Request - M/S Lovely Enterprise",
+      subject: "[Security] Password Reset Request - M/S Mahi and Muhi Traders",
       html,
       text: `To reset your password, please visit: ${resetLink}`
     };

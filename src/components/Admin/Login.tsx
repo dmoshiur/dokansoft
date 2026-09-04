@@ -220,7 +220,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <ShieldCheck size={32} className="text-white" />
               )}
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Lovely Enterprise</h1>
+            <h1 className="text-2xl font-bold text-white tracking-tight">M/S Mahi and Muhi Traders</h1>
             <p className="text-slate-400 text-sm mt-1">Enterprise Portal & Control Panel</p>
           </div>
 
@@ -547,7 +547,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                <span>Back to Homepage</span>
              </button>
              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest block">
-                Protected by Lovely Enterprise Security Node v2.4
+                Protected by Mahi and Muhi Traders Security Node v2.4
              </p>
           </div>
         </div>

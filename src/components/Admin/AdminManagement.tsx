@@ -420,7 +420,7 @@ export const AdminManagement: React.FC = () => {
                       <input 
                         type="text" 
                         required
-                        placeholder="e.g. Moshiur Rahman" 
+                        placeholder="e.g. Md Abu Masum" 
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-sm focus:ring-2 focus:ring-slate-900/10 outline-none transition-all font-semibold text-slate-800"
                         value={formName}
                         onChange={(e) => setFormName(e.target.value)}
@@ -431,7 +431,7 @@ export const AdminManagement: React.FC = () => {
                       <input 
                         type="email" 
                         required
-                        placeholder="e.g. admin@lovelygroup.com" 
+                        placeholder="e.g. admin@mahimuhitraders.com" 
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-sm focus:ring-2 focus:ring-slate-900/10 outline-none transition-all font-semibold text-slate-800"
                         value={formEmail}
                         onChange={(e) => setFormEmail(e.target.value)}

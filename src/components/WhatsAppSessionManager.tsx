@@ -6,7 +6,7 @@ export default function WhatsAppSessionManager() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [testNumber, setTestNumber] = useState("");
   const [testMessage, setTestMessage] = useState(
-    "Hello from Lovely ERP WhatsApp Bot!",
+    "Hello from Mahi and Muhi Traders WhatsApp Bot!",
   );
   const [isSending, setIsSending] = useState(false);
 

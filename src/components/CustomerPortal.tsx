@@ -638,7 +638,7 @@ export default function CustomerPortal({
                   <button
                     onClick={() => {
                       alert(
-                        "Simulating PDF Compilation... Download completed as lovely_invitation.pdf",
+                        "Simulating PDF Compilation... Download completed as mahi_muhi_invitation.pdf",
                       );
                     }}
                     className="bg-natural-light hover:bg-natural-sage/20 border border-natural-border text-natural-text px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
