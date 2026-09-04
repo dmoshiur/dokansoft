@@ -12,6 +12,7 @@ import { AwardsManagement } from './Admin/AwardsManagement';
 import { AdminInbox } from './Admin/AdminInbox';
 import { AdminManagement } from './Admin/AdminManagement';
 import { NotificationGateways } from './Admin/NotificationGateways';
+import { HisabHub } from './Admin/Hisab/HisabHub';
 import { useERPStore } from '../store';
 import { Toaster, toast } from 'sonner';
 
@@ -28,6 +29,7 @@ const AdminERP: React.FC<AdminERPProps> = ({ onLogout, role }) => {
     <>
       <AdminLayout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} role={role}>
         {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'hisab' && <HisabHub />}
         {activeTab === 'billing' && <Billing state={state} onSaveInvoice={addInvoice} />}
         {activeTab === 'communication' && <CommunicationCenter />}
         {activeTab === 'crm' && <CRM />}
