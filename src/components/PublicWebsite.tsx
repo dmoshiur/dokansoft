@@ -318,18 +318,17 @@ export default function PublicWebsite({
         "admin123";
 
       if (pass === storedPass) {
-        // Admin credentials correct, initiate OTP flow via Email
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        setSimulatedAdminOtp(code);
-        setAdminOtpSent(true);
-        setOtpExpiry(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
-        const adminEmail = config.emails[0] || "admin@lovelyenterprise.com";
-        sendNotification(
-          "Email",
-          adminEmail,
-          `Admin Login Verification Code: Your verification code is: ${code}. This code expires in 5 minutes. Security note: Never share this code with anyone.`,
-          "Admin Login OTP",
-        );
+        // Admin login is password-only (OTP removed). OTP remains only in the
+        // password-reset flow.
+        const isChanged =
+          localStorage.getItem("lovely_enterprise_admin_pass_changed") ===
+          "true";
+        if (!isChanged) {
+          setShowForceChangeModal(true);
+        } else {
+          const adminEmail = config.emails[0] || "admin@lovelyenterprise.com";
+          onAdminLoginSuccess(adminEmail);
+        }
         return;
       } else {
         setLoginAttempts((prev) => prev + 1);

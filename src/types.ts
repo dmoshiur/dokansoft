@@ -182,6 +182,7 @@ export interface PaymentTransaction {
   method: "bKash" | "Nagad" | "Upay" | "Bank Transfer";
   accountNo: string;
   transactionId: string;
+  reference?: string; // bKash Personal payment reference/note shown to customer
   timestamp: string;
   status: "PENDING" | "VERIFIED" | "REJECTED";
   auditLogId?: string;

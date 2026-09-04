@@ -319,7 +319,7 @@ export const useERPStore = () => {
           ...prev,
           ...publicData,
           config: publicData.settings?.shopName ? { ...prev.config, ...publicData.settings } : prev.config,
-          paymentSettings: publicData.settings?.paymentSettings || prev.paymentSettings,
+          paymentSettings: publicData.paymentSettings || publicData.settings?.paymentSettings || prev.paymentSettings,
           communicationSettings: publicData.settings?.communicationSettings || prev.communicationSettings,
           pbxSettings: publicData.settings?.pbxSettings || prev.pbxSettings,
         }));

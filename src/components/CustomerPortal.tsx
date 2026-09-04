@@ -33,6 +33,7 @@ interface CustomerPortalProps {
     method: "bKash" | "Nagad" | "Upay" | "Bank Transfer";
     accountNo: string;
     transactionId: string;
+    reference?: string;
     screenshotUrl?: string;
   }) => void;
 }
@@ -55,6 +56,7 @@ export default function CustomerPortal({
   >("bKash");
   const [payAccount, setPayAccount] = useState("");
   const [payTxid, setPayTxid] = useState("");
+  const [payRef, setPayRef] = useState("");
   const [paySuccessMsg, setPaySuccessMsg] = useState("");
   const [activeTab, setActiveTab] = useState<
     "ledger" | "pay" | "halkhata" | "alerts" | "calls"
@@ -108,6 +110,7 @@ export default function CustomerPortal({
       return;
     }
 
+    const reference = payRef || `PAY-${customer.id}-${Date.now().toString(36).toUpperCase().slice(-8)}`;
     onSubmitPayment({
       customerId: customer.id,
       customerName: customer.name,
@@ -115,6 +118,7 @@ export default function CustomerPortal({
       method: payMethod,
       accountNo: payAccount,
       transactionId: payTxid,
+      reference,
       screenshotUrl: (window as any)._tempScreenshot,
     });
 
@@ -122,11 +126,12 @@ export default function CustomerPortal({
     (window as any)._tempScreenshot = undefined;
 
     setPaySuccessMsg(
-      "Payment submitted successfully! Our accounts administrator will audit and verify your transaction ID shortly.",
+      "Payment submitted successfully! Our bKash Personal gateway will auto-verify your SMS reference / transaction ID shortly.",
     );
     setPayAmount("");
     setPayAccount("");
     setPayTxid("");
+    setPayRef("");
 
     setTimeout(() => {
       setPaySuccessMsg("");
@@ -155,7 +160,7 @@ export default function CustomerPortal({
   return (
     <div
       id="customer_portal_root"
-      className="min-h-screen bg-natural-light/60 flex flex-col font-sans"
+      className="min-h-screen bg-natural-light/60 flex flex-col font-sans pb-16 lg:pb-0"
     >
       {/* Top Navigation */}
       <header className="bg-brand-900 text-white shadow-xs">
@@ -231,8 +236,8 @@ export default function CustomerPortal({
 
       {/* Main Content Layout */}
       <div className="max-w-7xl mx-auto px-4 py-8 flex-1 w-full grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Left Sidebar Panel Links */}
-        <aside className="lg:col-span-1 space-y-1.5">
+        {/* Left Sidebar Panel Links (desktop) */}
+        <aside className="hidden lg:block lg:col-span-1 space-y-1.5">
           <button
             onClick={() => setActiveTab("ledger")}
             className={`w-full text-left px-4 py-3 rounded-lg text-xs font-extrabold flex items-center justify-between transition-all cursor-pointer ${activeTab === "ledger" ? "bg-brand-800 text-white shadow-xs shadow-brand-800/10" : "bg-white hover:bg-natural-light text-natural-text border border-natural-border"}`}
@@ -329,7 +334,7 @@ export default function CustomerPortal({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="mobile-card-table w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-natural-light border-b border-natural-border text-[10px] font-bold text-natural-muted uppercase tracking-wider font-sans">
                       <th className="px-5 py-3">Date</th>
@@ -348,10 +353,10 @@ export default function CustomerPortal({
                         key={entry.id}
                         className="hover:bg-natural-light/40 transition-all font-medium"
                       >
-                        <td className="px-5 py-3.5 font-mono text-[11px] font-semibold text-natural-muted">
+                        <td data-label="Date" className="px-5 py-3.5 font-mono text-[11px] font-semibold text-natural-muted">
                           {entry.date}
                         </td>
-                        <td className="px-5 py-3.5">
+                        <td data-label="Type" className="px-5 py-3.5 flex justify-between sm:block sm:text-left">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${entry.type === "PURCHASE" ? "bg-natural-accent/15 text-natural-accent border border-natural-accent/30" : entry.type === "PAYMENT" ? "bg-brand-900/10 text-brand-800 border border-brand-800/25" : "bg-natural-light text-natural-muted border border-natural-border"}`}
                           >
@@ -360,22 +365,22 @@ export default function CustomerPortal({
                               : entry.type}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-natural-text font-semibold">
+                        <td data-label="Reference" className="px-5 py-3.5 text-natural-text font-semibold text-right">
                           {entry.description}
                         </td>
-                        <td className="px-5 py-3.5 text-right font-semibold text-natural-red">
+                        <td data-label="Debit" className="px-5 py-3.5 text-right font-semibold text-natural-red">
                           {entry.type === "PURCHASE"
                             ? `+${entry.amount.toLocaleString()}`
                             : entry.type === "DUE_CARRY_FORWARD"
                               ? `+${entry.amount.toLocaleString()}`
                               : "-"}
                         </td>
-                        <td className="px-5 py-3.5 text-right font-semibold text-brand-800">
+                        <td data-label="Credit" className="px-5 py-3.5 text-right font-semibold text-brand-800">
                           {entry.type === "PAYMENT"
                             ? `-${entry.amount.toLocaleString()}`
                             : "-"}
                         </td>
-                        <td className="px-5 py-3.5 text-right font-mono font-bold text-natural-text">
+                        <td data-label="Balance" className="px-5 py-3.5 text-right font-mono font-bold text-natural-text">
                           {entry.runningBalance.toLocaleString()} BDT
                         </td>
                       </tr>
@@ -453,6 +458,38 @@ export default function CustomerPortal({
                     />
                   </div>
 
+                  {payMethod === "bKash" && (
+                    <div className="md:col-span-2 rounded-xl bg-brand-900/10 border border-brand-800/20 p-4 text-xs space-y-1">
+                      <p className="font-extrabold text-brand-900">
+                        bKash Personal Auto-Verification
+                      </p>
+                      <p>
+                        Send <strong>{payAmount || "the due amount"}</strong> BDT via bKash
+                        Send Money to{" "}
+                        <strong className="font-mono">
+                          {state.paymentSettings?.bkashPersonalNumber || "01712345678"}
+                        </strong>{" "}
+                        and put this Reference in the bKash note:{" "}
+                        <strong className="font-mono block mt-1">
+                          {payRef || `PAY-${customer.id}`}
+                        </strong>
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-natural-text mb-1.5 font-sans">
+                      Payment/Trx Reference (for bKash note)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={`PAY-${customer.id}-XXXXXX`}
+                      value={payRef}
+                      onChange={(e) => setPayRef(e.target.value.toUpperCase())}
+                      className="w-full px-3.5 py-2 text-sm bg-natural-light border border-natural-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-800/10 focus:border-brand-800 text-natural-text"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-natural-text mb-1.5 font-sans">
                       Your Account Number (Last 4/All)
@@ -524,7 +561,7 @@ export default function CustomerPortal({
                   </h4>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs font-sans">
+                  <table className="mobile-card-table w-full text-left border-collapse text-xs font-sans">
                     <thead>
                       <tr className="bg-natural-light border-b border-natural-border text-[10px] font-bold text-natural-muted uppercase tracking-wider">
                         <th className="px-5 py-3">TxID Reference</th>
@@ -540,19 +577,19 @@ export default function CustomerPortal({
                           key={p.id}
                           className="hover:bg-natural-light/40 transition-all"
                         >
-                          <td className="px-5 py-3 font-mono font-bold text-natural-text">
+                          <td data-label="TxID" className="px-5 py-3 font-mono font-bold text-natural-text">
                             {p.transactionId}
                           </td>
-                          <td className="px-5 py-3 font-semibold text-natural-text">
+                          <td data-label="Method" className="px-5 py-3 font-semibold text-natural-text">
                             {p.method}
                           </td>
-                          <td className="px-5 py-3 font-mono text-natural-muted">
+                          <td data-label="Account" className="px-5 py-3 font-mono text-natural-muted">
                             {p.accountNo}
                           </td>
-                          <td className="px-5 py-3 text-right font-extrabold text-natural-text">
+                          <td data-label="Amount" className="px-5 py-3 text-right font-extrabold text-natural-text">
                             {p.amount.toLocaleString()} BDT
                           </td>
-                          <td className="px-5 py-3 text-center">
+                          <td data-label="Status" className="px-5 py-3 text-center">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${p.status === "VERIFIED" ? "bg-brand-900/10 text-brand-800 border border-brand-800/25" : p.status === "PENDING" ? "bg-natural-accent/15 text-natural-accent border border-natural-accent/30" : "bg-natural-red/10 text-natural-red border border-natural-red/25"}`}
                             >
@@ -778,6 +815,30 @@ export default function CustomerPortal({
           )}
         </section>
       </div>
+
+      {/* Mobile bottom navigation (360-420px friendly) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-natural-border shadow-[0_-4px_20px_rgba(0,0,0,0.05)] grid grid-cols-5">
+        {(
+          [
+            ["ledger", "Ledger", FileText],
+            ["pay", "Pay", CreditCard],
+            ["halkhata", "HalKhata", Printer],
+            ["calls", "Calls", PhoneCall],
+            ["alerts", "Alerts", Smartphone],
+          ] as const
+        ).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex flex-col items-center gap-0.5 py-2 text-[9px] font-bold cursor-pointer min-h-[52px] ${
+              activeTab === id ? "text-brand-800 bg-brand-100" : "text-natural-muted"
+            }`}
+          >
+            <Icon size={18} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
