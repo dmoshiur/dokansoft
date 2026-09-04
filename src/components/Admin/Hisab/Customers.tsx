@@ -18,6 +18,7 @@ import { Party } from '../../../accounting/types';
 import { fmtMoney, fmtDate, waLink, smsLink, shareText, todayISO, normalizePhone } from '../../../accounting/format';
 import { customerBalance } from '../../../accounting/store';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, TextArea, Table, Th, Td, EmptyState, StatCard } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -55,6 +56,10 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
   const [form, setForm] = useState(emptyForm);
   const [payForm, setPayForm] = useState(emptyPayForm);
   const [sendingSmsId, setSendingSmsId] = useState<string | null>(null);
+
+  // Double-click / double-tap protection for both modals.
+  const custGuard = useSubmitGuard();
+  const txnGuard = useSubmitGuard();
 
   // ---- Derived per-customer figures ----
   const rows = useMemo(
@@ -140,27 +145,37 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
   };
   const openStatement = (c: Party) => { setTarget(c); setModal('view'); };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = custGuard.guard(() => {
     if (!form.name.trim()) { toast.error('কাস্টমারের নাম দিন'); return; }
     if (modal === 'add') {
-      addParty({ type: 'customer', name: form.name, phone: form.phone, address: form.address, email: form.email, notes: form.notes, openingBalance: parseFloat(form.openingBalance) || 0 });
+      const res = addParty({ type: 'customer', name: form.name, phone: form.phone, address: form.address, email: form.email, notes: form.notes, openingBalance: parseFloat(form.openingBalance) || 0 });
+      if (!res.ok) {
+        // Duplicate mobile/name — keep the modal open so the user can correct it.
+        toast.error(res.reason || 'ডুপ্লিকেট কাস্টমার');
+        if (res.existing) toast.info(`আগের রেকর্ড: ${res.existing.name} — ${res.existing.phone || 'নম্বর নেই'}`);
+        return;
+      }
       toast.success('নতুন কাস্টমার যোগ হয়েছে');
     } else if (modal === 'edit' && target) {
+      const clash = store.findDuplicate({ type: 'customer', name: form.name, phone: form.phone }, target.id);
+      if (clash) {
+        toast.error('এই মোবাইল নাম্বারে অন্য একজন কাস্টমার আগে থেকেই আছে');
+        return;
+      }
       updateParty(target.id, { name: form.name, phone: form.phone, address: form.address, email: form.email, notes: form.notes, openingBalance: parseFloat(form.openingBalance) || 0 });
       toast.success('কাস্টমার আপডেট হয়েছে');
     }
+    custGuard.resetKey();
     setModal(null);
-  };
+  });
 
-  const submitTxn = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitTxn = txnGuard.guard(() => {
     const amount = parseFloat(payForm.amount);
     if (!target || !amount) { toast.error('টাকার পরিমাণ দিন'); return; }
 
     if (payForm.direction === 'due') {
       const invoiceNo = `DUE-${Date.now().toString().slice(-6)}`;
-      addSale({
+      const res = addSale({
         invoiceNo,
         customerId: target.id,
         customerName: target.name,
@@ -176,9 +191,10 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
         status: 'Due',
         note: payForm.note || 'বাকি যোগ',
       });
+      if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট এন্ট্রি'); return; }
       toast.success(`বাকি যোগ হয়েছে — ৳${amount.toLocaleString()}`);
     } else {
-      addPayment({
+      const res = addPayment({
         direction: payForm.direction === 'receive' ? 'receive' : 'pay',
         partyId: target.id,
         partyName: target.name,
@@ -188,11 +204,13 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
         method: payForm.method,
         note: payForm.note,
       });
+      if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট এন্ট্রি'); return; }
       toast.success(payForm.direction === 'receive' ? 'জমা যোগ হয়েছে' : 'ফেরত যোগ হয়েছে');
     }
+    txnGuard.resetKey();
     setModal(null);
     setPayForm(emptyPayForm);
-  };
+  });
 
   const sendSmsReminder = async (c: Party) => {
     if (!c.phone) { toast.error('এই কাস্টমারের মোবাইল নম্বর নেই'); return; }
@@ -200,9 +218,9 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
     if (bal <= 0) { toast.error('এই কাস্টমারের কোনো বকেয়া নেই'); return; }
     setSendingSmsId(c.id);
     try {
-      const raw = normalizePhone(c.phone);
-      // sms.net.bd expects the international 880… format for local numbers.
-      const to = raw.startsWith('0') && raw.length === 11 ? `88${raw}` : raw;
+      // Send the raw number; the server normalises it (spaces, dashes, +88,
+      // 01X → 8801X) and reports an exact reason if it is not a valid BD number.
+      const to = normalizePhone(c.phone);
       const msg = `প্রিয় ${c.name}, ${s.profile.name} থেকে মনে করিয়ে দিচ্ছি — আপনার বকেয়া ৳${bal.toLocaleString()} আছে। অনুগ্রহ করে পরিশোধ করুন। ধন্যবাদ।`;
       const token = localStorage.getItem('erp_token') || localStorage.getItem('lovely_erp_token') || '';
       const res = await fetch('/api/gateways/sms/send', {
@@ -436,8 +454,10 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
           <Field label="পূর্বের বাকি (opening balance)"><Input type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} /></Field>
           <Field label="নোট"><TextArea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setModal(null)}>বাতিল</Button>
-            <Button type="submit">সংরক্ষণ</Button>
+            <Button type="button" variant="outline" disabled={custGuard.submitting} onClick={() => setModal(null)}>বাতিল</Button>
+            <Button type="submit" disabled={custGuard.submitting}>
+              {custGuard.submitting ? <><Loader2 size={15} className="animate-spin" /> সংরক্ষণ হচ্ছে…</> : 'সংরক্ষণ'}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -513,8 +533,10 @@ export const Customers: React.FC<{ store: Store }> = ({ store }) => {
           )}
           <Field label="নোট"><Input value={payForm.note} onChange={(e) => setPayForm({ ...payForm, note: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setModal(null)}>বাতিল</Button>
-            <Button type="submit">সংরক্ষণ</Button>
+            <Button type="button" variant="outline" disabled={txnGuard.submitting} onClick={() => setModal(null)}>বাতিল</Button>
+            <Button type="submit" disabled={txnGuard.submitting}>
+              {txnGuard.submitting ? <><Loader2 size={15} className="animate-spin" /> সংরক্ষণ হচ্ছে…</> : 'সংরক্ষণ'}
+            </Button>
           </div>
         </form>
       </Modal>

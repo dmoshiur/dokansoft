@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { TxnItem } from '../../../accounting/types';
 import { fmtMoney, fmtDate, todayISO, round2 } from '../../../accounting/format';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, Select, Table, Th, Td, EmptyState } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -46,19 +47,22 @@ export const Purchase: React.FC<{ store: Store }> = ({ store }) => {
 
   const addRow = () => setRows([...rows, { productId: products[0]?.id || '', quantity: '1', unitPrice: '' }]);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const purGuard = useSubmitGuard();
+
+  const submit = purGuard.guard(() => {
     if (!supplierId || items.length === 0 || items.some((i) => i.quantity <= 0)) { toast.error('সরবরাহকারী ও পণ্য ঠিকমতো দিন'); return; }
     const sup = suppliers.find((c) => c.id === supplierId);
     const status = due <= 0 ? 'Paid' : paidAmt > 0 ? 'Partial' : 'Due';
-    addPurchase({ supplierId, supplierName: sup?.name || '', date: todayISO(), items, subtotal, discount: 0, total, paid: paidAmt, due, paymentMethod: method, status: status as 'Paid' | 'Partial' | 'Due' });
+    const res = addPurchase({ supplierId, supplierName: sup?.name || '', date: todayISO(), items, subtotal, discount: 0, total, paid: paidAmt, due, paymentMethod: method, status: status as 'Paid' | 'Partial' | 'Due' });
+    if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট ক্রয় এন্ট্রি'); return; }
     items.forEach((i) => {
       const p = products.find((x) => x.id === i.productId);
       if (p) updateProduct(p.id, { stock: p.stock + i.quantity });
     });
     toast.success('কেনাকাটা সম্পন্ন হয়েছে');
+    purGuard.resetKey();
     setModal(false);
-  };
+  });
 
   const totalPurchases = s.purchases.reduce((a, x) => a + x.total, 0);
 
@@ -149,7 +153,7 @@ export const Purchase: React.FC<{ store: Store }> = ({ store }) => {
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setModal(false)}>বাতিল</Button>
-            <Button type="submit">কেনাকাটা সম্পন্ন করুন</Button>
+            <Button type="submit" disabled={purGuard.submitting}>{purGuard.submitting ? 'সেভ হচ্ছে…' : 'কেনাকাটা সম্পন্ন করুন'}</Button>
           </div>
         </form>
       </Modal>

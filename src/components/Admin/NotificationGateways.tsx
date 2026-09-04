@@ -118,7 +118,8 @@ function SmsGateway({ onSaved }: GatewayProps) {
     setSenderId(cfg.senderId || "");
     setContentId(cfg.defaultContentId || "");
     const logsData = await api("/api/gateways/sms/logs");
-    setLogs(logsData.slice(0, 30));
+    const rows = Array.isArray(logsData) ? logsData : logsData?.logs || [];
+    setLogs(rows.slice(0, 30));
     const balanceData = await api("/api/gateways/sms/balance");
     setBalance(balanceData);
   };
@@ -149,8 +150,9 @@ function SmsGateway({ onSaved }: GatewayProps) {
       body: JSON.stringify({ to: testTo, apiKey, senderId, contentId }),
     });
     setLoading(false);
-    if (res.success && !res.skipped) toast.success("Test SMS sent");
+    if (res.success && !res.skipped) toast.success(`Test SMS sent (request id ${res.requestId || "-"})`);
     else toast.error(res.error || "Test failed");
+    load();
   };
 
   return (
@@ -192,14 +194,15 @@ function SmsGateway({ onSaved }: GatewayProps) {
         <div className="overflow-x-auto rounded-2xl border border-slate-100">
           <table className="w-full text-left text-xs">
             <thead><tr className="bg-slate-50 text-[10px] text-slate-400 uppercase tracking-wider">
-              <th className="p-3">To</th><th className="p-3">Status</th><th className="p-3">Request ID</th><th className="p-3">Charge</th><th className="p-3">Time</th>
+              <th className="p-3">To</th><th className="p-3">Status</th><th className="p-3">Error reason</th><th className="p-3">Request ID</th><th className="p-3">Charge</th><th className="p-3">Time</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-50">
-              {logs.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-400">No SMS logged yet.</td></tr>}
+              {logs.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400">No SMS logged yet.</td></tr>}
               {logs.map((l) => (
                 <tr key={l.id}>
                   <td className="p-3 font-semibold">{l.to}</td>
                   <td className="p-3"><Badge status={l.status} /></td>
+                  <td className="p-3 text-red-600 max-w-xs truncate" title={l.error || ""}>{l.error || "-"}</td>
                   <td className="p-3 font-mono text-slate-500">{l.requestId || "-"}</td>
                   <td className="p-3">{l.charge ?? 0}</td>
                   <td className="p-3 text-slate-400">{l.createdAt?.slice(0, 16)}</td>

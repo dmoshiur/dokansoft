@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { fmtMoney, fmtDate, todayISO, fmtDateTime } from '../../../accounting/format';
 import { customerBalance, supplierBalance } from '../../../accounting/store';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, Select, Table, Th, Td, EmptyState, Tabs } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -29,14 +30,17 @@ export const Payments: React.FC<{ store: Store }> = ({ store }) => {
 
   const openNew = () => { setForm({ partyId: parties[0]?.id || '', amount: '', method: 'Cash', reference: '', note: '' }); setModal(true); };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const payGuard = useSubmitGuard();
+
+  const submit = payGuard.guard(() => {
     if (!form.partyId || !parseFloat(form.amount)) { toast.error('সব ফিল্ড দিন'); return; }
     const p = s.parties.find((x) => x.id === form.partyId);
-    addPayment({ direction, partyId: form.partyId, partyName: p?.name || '', partyType: direction === 'receive' ? 'customer' : 'supplier', amount: parseFloat(form.amount), date: todayISO(), method: form.method, reference: form.reference, note: form.note });
+    const res = addPayment({ direction, partyId: form.partyId, partyName: p?.name || '', partyType: direction === 'receive' ? 'customer' : 'supplier', amount: parseFloat(form.amount), date: todayISO(), method: form.method, reference: form.reference, note: form.note });
+    if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট লেনদেন'); return; }
     toast.success(direction === 'receive' ? 'টাকা গ্রহণ হয়েছে' : 'টাকা প্রদান হয়েছে');
+    payGuard.resetKey();
     setModal(false);
-  };
+  });
 
   const balanceOf = (id: string) => (direction === 'receive' ? customerBalance(s, id) : supplierBalance(s, id));
 
@@ -101,7 +105,7 @@ export const Payments: React.FC<{ store: Store }> = ({ store }) => {
           <Field label="নোট"><Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setModal(false)}>বাতিল</Button>
-            <Button type="submit">সংরক্ষণ</Button>
+            <Button type="submit" disabled={payGuard.submitting}>{payGuard.submitting ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ'}</Button>
           </div>
         </form>
       </Modal>

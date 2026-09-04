@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { TxnItem } from '../../../accounting/types';
 import { fmtMoney, fmtDate, fmtDateTime, todayISO, round2, shareText } from '../../../accounting/format';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, Select, Table, Th, Td, EmptyState } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -57,8 +58,9 @@ export const Sales: React.FC<{ store: Store }> = ({ store }) => {
     return `${s.settings.invoicePrefix || 'INV'}-${max + 1}`;
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const saleGuard = useSubmitGuard();
+
+  const submit = saleGuard.guard(() => {
     if (!customerId || items.length === 0 || items.some((i) => i.quantity <= 0)) { toast.error('কাস্টমার ও পণ্য ঠিকমতো দিন'); return; }
     const cust = customers.find((c) => c.id === customerId);
     const status = due <= 0 ? 'Paid' : paidAmt > 0 ? 'Partial' : 'Due';
@@ -66,15 +68,17 @@ export const Sales: React.FC<{ store: Store }> = ({ store }) => {
       invoiceNo: nextInvoiceNo(), customerId, customerName: cust?.name || '', date: todayISO(),
       items, subtotal, discount: disc, vat: vatAmt, total, paid: paidAmt, due, paymentMethod: method, status: status as 'Paid' | 'Partial' | 'Due',
     };
-    addSale(sale);
+    const res = addSale(sale);
+    if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট বিক্রি এন্ট্রি'); return; }
     // reduce stock
     items.forEach((i) => {
       const p = products.find((x) => x.id === i.productId);
       if (p) updateProduct(p.id, { stock: Math.max(0, p.stock - i.quantity) });
     });
     toast.success(`বিক্রি সম্পন্ন — ${sale.invoiceNo}`);
+    saleGuard.resetKey();
     setModal(false);
-  };
+  });
 
   const printInvoice = (id: string) => {
     setView(id);
@@ -184,7 +188,7 @@ export const Sales: React.FC<{ store: Store }> = ({ store }) => {
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setModal(false)}>বাতিল</Button>
-            <Button type="submit">বিক্রি সম্পন্ন করুন</Button>
+            <Button type="submit" disabled={saleGuard.submitting}>{saleGuard.submitting ? 'সেভ হচ্ছে…' : 'বিক্রি সম্পন্ন করুন'}</Button>
           </div>
         </form>
       </Modal>
