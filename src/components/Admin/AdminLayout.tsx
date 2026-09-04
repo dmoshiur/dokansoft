@@ -18,7 +18,8 @@ import {
   Trophy,
   Inbox,
   UserCog,
-  Share2
+  Share2,
+  Calculator
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -35,6 +36,7 @@ interface AdminLayoutProps {
 const getMenuItems = (role: string) => {
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'hisab', label: 'Hisab / হিসাব', icon: Calculator },
     { id: 'billing', label: 'Billing / Memo', icon: Receipt },
     { id: 'communication', label: 'Communication', icon: PhoneCall },
     { id: 'crm', label: 'CRM / Customers', icon: Users },
