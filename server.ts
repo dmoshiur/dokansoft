@@ -2085,6 +2085,26 @@ async function startServer() {
     }
   });
 
+  app.post("/api/gateways/sms/send", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const { to, msg, senderId, contentId } = req.body || {};
+      const normalizedTo = String(to || "").replace(/[\s-]/g, "");
+      if (!normalizedTo) return res.status(400).json({ error: "Recipient phone number is required." });
+      if (!msg || !String(msg).trim()) return res.status(400).json({ error: "Message text is required." });
+
+      const config = await smsNetBdService.getConfig();
+      const result = await smsNetBdService.send({
+        to: normalizedTo,
+        msg: String(msg),
+        senderId: senderId || config.senderId || undefined,
+        contentId: contentId || config.defaultContentId || undefined,
+      });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/gateways/sms/logs", authenticateToken, isAdmin, async (_req, res) => {
     try {
       const logs = await smsNetBdService.getLogs();

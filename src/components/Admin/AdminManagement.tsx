@@ -235,7 +235,7 @@ export const AdminManagement: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Admin Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">অ্যাডমিন ম্যানেজমেন্ট / Admin Management</h1>
           <p className="text-slate-500 mt-1">
             Supervise role-based permissions, configure status limits, and manage credential parameters.
           </p>

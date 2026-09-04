@@ -456,7 +456,10 @@ export const customerBalance = (s: AccountingState, partyId: string): number => 
   if (!p) return 0;
   const salesTotal = s.sales.filter((x) => x.customerId === partyId).reduce((a, x) => a + x.total, 0);
   const paid = s.payments.filter((x) => x.partyId === partyId && x.direction === 'receive').reduce((a, x) => a + x.amount, 0);
-  return round2((p.openingBalance || 0) + salesTotal - paid);
+  // Refunds (direction 'pay') put money back into the customer's hands, so they
+  // increase the outstanding balance again.
+  const refunded = s.payments.filter((x) => x.partyId === partyId && x.direction === 'pay').reduce((a, x) => a + x.amount, 0);
+  return round2((p.openingBalance || 0) + salesTotal + refunded - paid);
 };
 
 export const supplierBalance = (s: AccountingState, partyId: string): number => {

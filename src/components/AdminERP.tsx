@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AdminLayout } from './Admin/AdminLayout';
 import { Dashboard } from './Admin/Dashboard';
 import { CommunicationCenter } from './Admin/CommunicationCenter';
-import { CRM } from './Admin/CRM';
-import { Inventory } from './Admin/Inventory';
-import { HalKhata } from './Admin/HalKhata';
 import { Settings } from './Admin/Settings';
 import { WhatsApp } from './Admin/WhatsApp';
 import { Billing } from './Admin/Billing';
@@ -14,7 +11,7 @@ import { AdminManagement } from './Admin/AdminManagement';
 import { NotificationGateways } from './Admin/NotificationGateways';
 import { HisabHub } from './Admin/Hisab/HisabHub';
 import { useERPStore } from '../store';
-import { Toaster, toast } from 'sonner';
+import { Toaster } from 'sonner';
 
 interface AdminERPProps {
   onLogout: () => void;
@@ -23,23 +20,35 @@ interface AdminERPProps {
 
 const AdminERP: React.FC<AdminERPProps> = ({ onLogout, role }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState('home');
   const { state, addInvoice } = useERPStore();
+
+  const handleSelectTab = (tab: string) => {
+    setActiveTab(tab);
+    // Reset the sub-selection to a sensible default for grouped tabs.
+    if (tab === 'hisab') setActiveSubTab('home');
+    else if (tab === 'settings') setActiveSubTab('settings');
+  };
 
   return (
     <>
-      <AdminLayout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} role={role}>
+      <AdminLayout
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        activeSubTab={activeSubTab}
+        onSelectSubTab={setActiveSubTab}
+        onLogout={onLogout}
+        role={role}
+      >
         {activeTab === 'dashboard' && <Dashboard />}
-        {activeTab === 'hisab' && <HisabHub />}
+        {activeTab === 'hisab' && <HisabHub active={activeSubTab} onNavigate={setActiveSubTab} />}
         {activeTab === 'billing' && <Billing state={state} onSaveInvoice={addInvoice} />}
         {activeTab === 'communication' && <CommunicationCenter />}
-        {activeTab === 'crm' && <CRM />}
-        {activeTab === 'inventory' && <Inventory />}
-        {activeTab === 'halkhata' && <HalKhata />}
         {activeTab === 'whatsapp' && <WhatsApp />}
         {activeTab === 'awards' && <AwardsManagement />}
         {activeTab === 'inbox' && <AdminInbox />}
-        {activeTab === 'settings' && <Settings />}
-        {activeTab === 'gateways' && <NotificationGateways />}
+        {activeTab === 'settings' && activeSubTab === 'gateways' && <NotificationGateways />}
+        {activeTab === 'settings' && activeSubTab !== 'gateways' && <Settings />}
         {activeTab === 'adminManagement' && <AdminManagement />}
       </AdminLayout>
       <Toaster position="top-right" richColors />

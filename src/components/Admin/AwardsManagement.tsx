@@ -129,7 +129,7 @@ export const AwardsManagement: React.FC = () => {
             <Trophy className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Awards & Achievements</h1>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">অ্যাওয়ার্ড / Awards & Achievements</h1>
             <p className="text-sm text-slate-500 mt-1">Manage public dealer credentials, certifications, and national accolades.</p>
           </div>
         </div>
