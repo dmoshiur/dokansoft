@@ -53,7 +53,7 @@ export function NotificationGateways() {
     <div className="notification-gateways p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Notification &amp; Gateway Settings
+          নোটিফিকেশন ও গেটওয়ে সেটিংস / Notification &amp; Gateway Settings
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
           Toggle every external gateway independently. All sends are queued and processed

@@ -188,7 +188,7 @@ export const WhatsApp: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">WhatsApp Messaging</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">হোয়াটসঅ্যাপ / WhatsApp Messaging</h1>
           <p className="text-slate-500 mt-1">Manage and monitor your automated Baileys gateway for notifications and login codes.</p>
         </div>
         <div className="flex items-center gap-3">

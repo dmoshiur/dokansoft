@@ -197,7 +197,7 @@ export const Settings: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">System & CMS Settings</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">সিস্টেম ও সিএমএস সেটিংস / System & CMS Settings</h1>
           <p className="text-slate-500 mt-1">Configure your ERP preferences, edit landing page CMS, and manage secure database structures.</p>
         </div>
         <div className="flex items-center gap-3">

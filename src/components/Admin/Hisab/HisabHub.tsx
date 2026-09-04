@@ -1,14 +1,19 @@
 /**
- * Hisab (হিসাব) — full accounting module hub with sub-navigation.
+ * Hisab (হিসাব / হালখাতা) — full accounting module hub.
+ *
+ * The sub-navigation now lives in the main sidebar (AdminLayout) as an inline
+ * accordion, so this component is a *controlled* view that only renders the
+ * currently selected sub-page. `HISAB_NAV` is exported so the sidebar can
+ * render the same menu without duplicating the definition.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import {
   LayoutDashboard, Users, Store, Package, ShoppingCart, ShoppingBag,
   TrendingUp, TrendingDown, CreditCard, Wallet, Landmark, BarChart3,
   Receipt, Bell, UserCog, ShieldCheck, Search, Trash2, CloudUpload, Settings,
+  Sparkles,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { cn } from '../../../lib/utils';
 import { useAccountingStore } from '../../../accounting/store';
 import { Home } from './Home';
 import { Customers } from './Customers';
@@ -29,91 +34,85 @@ import { SearchModule } from './Search';
 import { Trash } from './Trash';
 import { Backup } from './Backup';
 import { SettingsModule } from './Settings';
+import { HalKhata } from '../HalKhata';
 
-const NAV: { id: string; label: string; icon: React.ElementType; group: string }[] = [
-  { id: 'home', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
-  { id: 'customers', label: 'Customers', icon: Users, group: 'Parties' },
-  { id: 'suppliers', label: 'Suppliers', icon: Store, group: 'Parties' },
-  { id: 'products', label: 'Products & Categories', icon: Package, group: 'Inventory' },
-  { id: 'sales', label: 'Sales', icon: ShoppingCart, group: 'Transactions' },
-  { id: 'purchase', label: 'Purchase', icon: ShoppingBag, group: 'Transactions' },
-  { id: 'income', label: 'Income', icon: TrendingUp, group: 'Transactions' },
-  { id: 'expense', label: 'Expense', icon: TrendingDown, group: 'Transactions' },
-  { id: 'payments', label: 'Payments', icon: CreditCard, group: 'Money' },
-  { id: 'cashbook', label: 'Cashbook', icon: Wallet, group: 'Money' },
-  { id: 'bank', label: 'Bank & Mobile', icon: Landmark, group: 'Money' },
-  { id: 'reports', label: 'Reports', icon: BarChart3, group: 'Insights' },
-  { id: 'invoices', label: 'Invoices', icon: Receipt, group: 'Insights' },
-  { id: 'reminders', label: 'Notifications', icon: Bell, group: 'Management' },
-  { id: 'employees', label: 'Employees', icon: UserCog, group: 'Management' },
-  { id: 'users', label: 'Users & Permissions', icon: ShieldCheck, group: 'Management' },
-  { id: 'search', label: 'Search', icon: Search, group: 'Data' },
-  { id: 'trash', label: 'Trash', icon: Trash2, group: 'Data' },
-  { id: 'backup', label: 'Backup & Restore', icon: CloudUpload, group: 'Data' },
-  { id: 'settings', label: 'Settings', icon: Settings, group: 'System' },
+export interface HisabNavItem {
+  id: string;
+  label: string; // Bangla main label
+  sub?: string; // English sub-label (small)
+  icon: React.ElementType;
+  group: string;
+}
+
+export const HISAB_NAV: HisabNavItem[] = [
+  { id: 'home', label: 'ড্যাশবোর্ড', sub: 'Dashboard', icon: LayoutDashboard, group: 'সারসংক্ষেপ' },
+  { id: 'customers', label: 'কাস্টমার', sub: 'Customers', icon: Users, group: 'পক্ষ' },
+  { id: 'suppliers', label: 'সরবরাহকারী', sub: 'Suppliers', icon: Store, group: 'পক্ষ' },
+  { id: 'products', label: 'পণ্য ও ক্যাটাগরি', sub: 'Products', icon: Package, group: 'স্টক' },
+  { id: 'sales', label: 'বিক্রি', sub: 'Sales', icon: ShoppingCart, group: 'লেনদেন' },
+  { id: 'purchase', label: 'ক্রয়', sub: 'Purchase', icon: ShoppingBag, group: 'লেনদেন' },
+  { id: 'income', label: 'আয়', sub: 'Income', icon: TrendingUp, group: 'লেনদেন' },
+  { id: 'expense', label: 'খরচ', sub: 'Expense', icon: TrendingDown, group: 'লেনদেন' },
+  { id: 'payments', label: 'লেনদেন', sub: 'Payments', icon: CreditCard, group: 'টাকা' },
+  { id: 'cashbook', label: 'ক্যাশবুক', sub: 'Cashbook', icon: Wallet, group: 'টাকা' },
+  { id: 'bank', label: 'ব্যাংক ও মোবাইল', sub: 'Bank & Mobile', icon: Landmark, group: 'টাকা' },
+  { id: 'halkhata', label: 'হালখাতা ইভেন্ট', sub: 'HalKhata Events', icon: Sparkles, group: 'টাকা' },
+  { id: 'reports', label: 'রিপোর্ট', sub: 'Reports', icon: BarChart3, group: 'বিশ্লেষণ' },
+  { id: 'invoices', label: 'ইনভয়েস', sub: 'Invoices', icon: Receipt, group: 'বিশ্লেষণ' },
+  { id: 'reminders', label: 'নোটিফিকেশন', sub: 'Notifications', icon: Bell, group: 'ব্যবস্থাপনা' },
+  { id: 'employees', label: 'কর্মচারী', sub: 'Employees', icon: UserCog, group: 'ব্যবস্থাপনা' },
+  { id: 'users', label: 'ইউজার ও অনুমতি', sub: 'Users & Permissions', icon: ShieldCheck, group: 'ব্যবস্থাপনা' },
+  { id: 'search', label: 'সার্চ', sub: 'Search', icon: Search, group: 'ডেটা' },
+  { id: 'trash', label: 'ট্র্যাশ', sub: 'Trash', icon: Trash2, group: 'ডেটা' },
+  { id: 'backup', label: 'ব্যাকআপ ও রিস্টোর', sub: 'Backup & Restore', icon: CloudUpload, group: 'ডেটা' },
+  { id: 'settings', label: 'সেটিংস', sub: 'Settings', icon: Settings, group: 'সিস্টেম' },
 ];
 
-const GROUPS = ['Overview', 'Parties', 'Inventory', 'Transactions', 'Money', 'Insights', 'Management', 'Data', 'System'];
+export const HISAB_GROUPS = [
+  'সারসংক্ষেপ',
+  'পক্ষ',
+  'স্টক',
+  'লেনদেন',
+  'টাকা',
+  'বিশ্লেষণ',
+  'ব্যবস্থাপনা',
+  'ডেটা',
+  'সিস্টেম',
+];
 
-export const HisabHub: React.FC = () => {
-  const [active, setActive] = useState('home');
+interface HisabHubProps {
+  active: string;
+  onNavigate: (id: string) => void;
+}
+
+export const HisabHub: React.FC<HisabHubProps> = ({ active, onNavigate }) => {
   const store = useAccountingStore();
 
   return (
-    <div className="flex flex-col lg:flex-row gap-5">
-      {/* Sub nav */}
-      <aside className="lg:w-64 shrink-0">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 lg:sticky lg:top-4">
-          <nav className="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0">
-            {GROUPS.map((g) => {
-              const items = NAV.filter((n) => n.group === g);
-              if (!items.length) return null;
-              return (
-                <div key={g} className="flex lg:flex-col gap-1 shrink-0">
-                  <span className="hidden lg:block px-3 pt-3 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{g}</span>
-                  {items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setActive(item.id)}
-                      className={cn(
-                        'flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors',
-                        active === item.id ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100',
-                      )}
-                    >
-                      <item.icon size={17} />
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              );
-            })}
-          </nav>
-        </div>
-      </aside>
-
-      {/* Content */}
-      <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex-1 min-w-0">
-        {active === 'home' && <Home s={store.state} />}
-        {active === 'customers' && <Customers store={store} />}
-        {active === 'suppliers' && <Suppliers store={store} />}
-        {active === 'products' && <Products store={store} />}
-        {active === 'sales' && <Sales store={store} />}
-        {active === 'purchase' && <Purchase store={store} />}
-        {active === 'income' && <Income store={store} />}
-        {active === 'expense' && <Expense store={store} />}
-        {active === 'payments' && <Payments store={store} />}
-        {active === 'cashbook' && <Cashbook store={store} />}
-        {active === 'bank' && <Bank store={store} />}
-        {active === 'reports' && <Reports store={store} />}
-        {active === 'invoices' && <Invoices store={store} />}
-        {active === 'reminders' && <Reminders store={store} />}
-        {active === 'employees' && <Employees store={store} />}
-        {active === 'users' && <UsersModule store={store} />}
-        {active === 'search' && <SearchModule store={store} />}
-        {active === 'trash' && <Trash store={store} />}
-        {active === 'backup' && <Backup store={store} />}
-        {active === 'settings' && <SettingsModule store={store} />}
-      </motion.div>
-    </div>
+    <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
+      {active === 'home' && <Home s={store.state} />}
+      {active === 'customers' && <Customers store={store} />}
+      {active === 'suppliers' && <Suppliers store={store} />}
+      {active === 'products' && <Products store={store} />}
+      {active === 'sales' && <Sales store={store} />}
+      {active === 'purchase' && <Purchase store={store} />}
+      {active === 'income' && <Income store={store} />}
+      {active === 'expense' && <Expense store={store} />}
+      {active === 'payments' && <Payments store={store} />}
+      {active === 'cashbook' && <Cashbook store={store} />}
+      {active === 'bank' && <Bank store={store} />}
+      {active === 'halkhata' && <HalKhata />}
+      {active === 'reports' && <Reports store={store} />}
+      {active === 'invoices' && <Invoices store={store} />}
+      {active === 'reminders' && <Reminders store={store} />}
+      {active === 'employees' && <Employees store={store} />}
+      {active === 'users' && <UsersModule store={store} />}
+      {active === 'search' && <SearchModule store={store} />}
+      {active === 'trash' && <Trash store={store} />}
+      {active === 'backup' && <Backup store={store} />}
+      {active === 'settings' && <SettingsModule store={store} />}
+    </motion.div>
   );
 };
+
+export default HisabHub;

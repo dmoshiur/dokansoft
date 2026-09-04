@@ -100,7 +100,7 @@ export const AdminInbox: React.FC = () => {
             )}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Inbox</h1>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">ইনবক্স / Admin Inbox</h1>
             <p className="text-sm text-slate-500 mt-1">Review, organize, and reply to client inquiries received from your public website contact form.</p>
           </div>
         </div>

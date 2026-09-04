@@ -92,7 +92,7 @@ export const Dashboard: React.FC = () => {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Enterprise Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">ড্যাশবোর্ড / Enterprise Dashboard</h1>
           <p className="text-slate-500 mt-1">Welcome back, {activeName}. Here's what's happening today.</p>
         </div>
         <div className="flex items-center gap-3">
