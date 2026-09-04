@@ -26,7 +26,7 @@ export const WhatsApp: React.FC = () => {
   
   // Test Message form state
   const [testNumber, setTestNumber] = useState("");
-  const [testMessage, setTestMessage] = useState("Hello from Lovely ERP Baileys integration!");
+  const [testMessage, setTestMessage] = useState("Hello from Mahi and Muhi Traders ERP Baileys integration!");
 
   // Search logs state
   const [searchQuery, setSearchQuery] = useState("");
@@ -290,7 +290,7 @@ export const WhatsApp: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-slate-500 font-semibold leading-normal uppercase tracking-wide">
-                Open WhatsApp &gt; Linked Devices &gt; Link a Device to synchronize Lovely ERP.
+                Open WhatsApp &gt; Linked Devices &gt; Link a Device to synchronize Mahi and Muhi Traders ERP.
               </p>
             </div>
           )}

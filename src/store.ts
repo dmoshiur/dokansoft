@@ -49,16 +49,16 @@ const INITIAL_WA_MULTI_SETTINGS: WhatsAppMultiProviderSettings = {
 
 // Clean Initial Datastore
 const INITIAL_SHOP_CONFIG: ShopConfig = {
-  shopName: "M/S Lovely Enterprise",
-  secondaryLicenseName: "M/s Mahi & Muhi Traders",
-  proprietorName: "Md. Moshiur Rahman Mohi",
-  address: "Dewanganj Road, Jamalpur, Bangladesh",
+  shopName: "M/S Mahi and Muhi Traders",
+  secondaryLicenseName: "Govt. Lic. Holding: M/S Lovely Enterprise",
+  proprietorName: "Md Abu Masum",
+  address: "Punot Bazar, Kalai, Rajshahi, Bangladesh",
   phoneNumbers: ["+8801712-345678", "+8801911-223344"],
-  emails: ["mdmoshiurrahmanmohi1@gmail.com"],
+  emails: ["abumasumpunot@gmail.com"],
   adminPassword: "admin123",
   googleMapsUrl:
     "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3648.4067975878297!2d90.4042852!3d23.9990817!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3755daf8a509990d%3A0xc0959f6350d750c!2sGazipur!5e0!3m2!1sen!2sbd!4v1680000000000!5m2!1sen!2sbd",
-  logoText: "M/S Lovely Enterprise",
+  logoText: "M/S Mahi and Muhi Traders",
   bannerUrl:
     "https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop",
   socialLinks: {
@@ -67,16 +67,16 @@ const INITIAL_SHOP_CONFIG: ShopConfig = {
     whatsapp: "https://wa.me/8801712345678",
     linkedin: "https://linkedin.com/company/lovelyenterprise",
   },
-  lovelyProprietor: "Md. Moshiur Rahman Mohi",
+  lovelyProprietor: "Md AsimUddin Mondal",
   lovelyLicenseNo: "LIC-LE-998877",
   lovelyPhone: "+8801712-345678",
-  mahiProprietor: "Mst. Muhi Begum",
+  mahiProprietor: "Md Abu Masum",
   mahiLicenseNo: "LIC-MM-112233",
   mahiPhone: "+8801911-223344",
   
   // Custom Branding
-  siteTitle: "Lovely Enterprise | Premium Agro Inputs & Logistics",
-  faviconUrl: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=32&h=32&fit=crop",
+  siteTitle: "M/S Mahi and Muhi Traders | Agro Traders & Logistics",
+  faviconUrl: "/icons/mm-logo-192.png",
   themeColor: "Green",
 
   // Top banner
@@ -90,10 +90,10 @@ const INITIAL_SHOP_CONFIG: ShopConfig = {
   heroBtnLink: "#section_products",
 
   // About Us section
-  aboutTitle: "About Lovely Enterprise & Agronomy",
-  aboutDesc: "Established with a goal of reinforcing Bangladesh's agricultural backbone, we supply certified high-yield hybrid rice, maize, and vegetable seeds, alongside high-grade eco-friendly organic pesticides and fertilizers. Under leadership of proprietor Md. Moshiur Rahman Mohi, we have expanded to Gazipur and Jamalpur as regional logistics partners.",
-  aboutOwnerImage: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop",
-  aboutOwnerName: "Md. Moshiur Rahman Mohi",
+  aboutTitle: "About M/S Mahi and Muhi Traders",
+  aboutDesc: "Established with a goal of reinforcing Bangladesh's agricultural backbone, we supply certified high-yield hybrid rice, maize, and vegetable seeds, alongside high-grade eco-friendly organic pesticides and fertilizers. Under leadership of proprietor Md Abu Masum, we operate from Punot Bazar, Kalai, Rajshahi, serving the local farming community as a trusted seed, chemical and fertilizer distributor.",
+  aboutOwnerImage: "",
+  aboutOwnerName: "Md Abu Masum",
 
   // Section show/hide toggles
   showEntities: true,
@@ -1308,7 +1308,7 @@ export const useERPStore = () => {
         dueAmount: c.dueAmount,
         status: "Queued",
         attempts: 0,
-        message: `M/S Lovely Enterprise HalKhata Invitation: Dear ${c.name}, you are cordially invited to our HalKhata feast on ${event.date} at ${event.startTime}. Outstanding Settle Due: ${c.dueAmount.toLocaleString()} BDT. Details: ${state.config.phoneNumbers[0]}.`,
+        message: `M/S Mahi and Muhi Traders HalKhata Invitation: Dear ${c.name}, you are cordially invited to our HalKhata feast on ${event.date} at ${event.startTime}. Outstanding Settle Due: ${c.dueAmount.toLocaleString()} BDT. Details: ${state.config.phoneNumbers[0]}.`,
         timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
         retryCount: 0,
       }));
@@ -1337,7 +1337,7 @@ export const useERPStore = () => {
         customerPhone: c.phone!,
         status: "Queued",
         attempts: 0,
-        voiceText: `Hello ${c.name}. Settle your pending outstanding balance of ${c.dueAmount.toLocaleString()} BDT at M/S Lovely Enterprise's Grand HalKhata event scheduled on ${event.date} starting from ${event.startTime}. Thank you.`,
+        voiceText: `Hello ${c.name}. Settle your pending outstanding balance of ${c.dueAmount.toLocaleString()} BDT at M/S Mahi and Muhi Traders' Grand HalKhata event scheduled on ${event.date} starting from ${event.startTime}. Thank you.`,
         timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
         fallbackSent: { whatsapp: false, sms: false, email: false },
       }));
@@ -1359,7 +1359,7 @@ export const useERPStore = () => {
       id: `cam-hk-${eventId}`,
       name: `হালখাতা প্রচার - ${event.date}`,
       status: "ACTIVE",
-      voiceTemplate: `Hello {CustomerName}. Settle your pending outstanding balance of {DueAmount} BDT at Lovely Enterprise's Grand HalKhata event scheduled on ${event.date} starting from ${event.startTime}. Thank you.`,
+      voiceTemplate: `Hello {CustomerName}. Settle your pending outstanding balance of {DueAmount} BDT at M/S Mahi and Muhi Traders' Grand HalKhata event scheduled on ${event.date} starting from ${event.startTime}. Thank you.`,
       calls,
       createdAt: new Date().toISOString().slice(0, 19).replace("T", " "),
     };
@@ -1550,7 +1550,7 @@ export const useERPStore = () => {
         sendNotification(
           "SMS",
           call.customerPhone,
-          `We missed you! Lovely Ent outstanding balance alert. Please contact or login to settle accounts.`,
+          `We missed you! M/S Mahi and Muhi Traders outstanding balance alert. Please contact or login to settle accounts.`,
           "Auto Fallback Alert",
         );
       }
@@ -1733,7 +1733,7 @@ export const useERPStore = () => {
     sendNotification(
       "Email",
       email,
-      `M/S Lovely Enterprise password reset link: https://lovelyenterprise.com/reset-password?token=${token}&email=${email}`,
+      `M/S Mahi and Muhi Traders password reset link: https://mahimuhitraders.com/reset-password?token=${token}&email=${email}`,
       "Password Recovery Request",
     );
     
@@ -1743,7 +1743,7 @@ export const useERPStore = () => {
       sendNotification(
         "WhatsApp",
         custForWa.phone,
-        `M/S Lovely Enterprise password reset link: https://lovelyenterprise.com/reset-password?token=${token}&email=${email}`,
+        `M/S Mahi and Muhi Traders password reset link: https://mahimuhitraders.com/reset-password?token=${token}&email=${email}`,
         "Password Recovery Request",
       );
     }

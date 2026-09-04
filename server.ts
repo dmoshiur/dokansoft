@@ -249,7 +249,7 @@ async function startServer() {
       
       // Send OTP via WhatsApp
       try {
-        await sendMessage(phone, `Your Lovely ERP OTP is ${otpRecord.code}`);
+        await sendMessage(phone, `Your M/S Mahi and Muhi Traders OTP is ${otpRecord.code}`);
         console.log(`[Customer Auth] OTP sent successfully via WhatsApp to ${phone}`);
       } catch (waErr: any) {
         console.warn(`[Customer Auth] Failed to send WhatsApp OTP: ${waErr.message}`);
@@ -2063,7 +2063,7 @@ async function startServer() {
       const result = await smsNetBdService.send(
         {
           to,
-          msg: "This is a test SMS from Lovely Enterprise ERP. If you can read this, sms.net.bd is configured correctly.",
+          msg: "This is a test SMS from M/S Mahi and Muhi Traders ERP. If you can read this, sms.net.bd is configured correctly.",
           senderId: senderId || config.senderId || undefined,
           contentId: contentId || config.defaultContentId || undefined,
         },
@@ -2148,7 +2148,7 @@ async function startServer() {
           body.password && body.password !== "••••••••" && body.password !== "••••••"
             ? encryptSecret(body.password)
             : rawCurrent?.password || encryptSecret(current.password || ""),
-        fromName: body.fromName || current?.fromName || "Lovely Enterprise",
+        fromName: body.fromName || current?.fromName || "M/S Mahi and Muhi Traders",
         fromEmail: body.fromEmail || current?.fromEmail || "",
         apiProvider: body.apiProvider || current?.apiProvider || "generic",
         apiUrl: body.apiUrl || current?.apiUrl || "",
@@ -2195,7 +2195,7 @@ async function startServer() {
       };
       const ok = await Mailer.sendEmailWithConfig({
         to,
-        subject: "[Lovely ERP] SMTP/Email Gateway Test",
+        subject: "[M/S Mahi and Muhi Traders ERP] SMTP/Email Gateway Test",
         html: "<h2>Email gateway test</h2><p>If you can read this, your email gateway is configured correctly.</p>",
         text: "Email gateway test. If you can read this, your email gateway is configured correctly.",
       }, emailGateway);

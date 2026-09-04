@@ -50,7 +50,7 @@ export function PwaInstall() {
         <div className="w-20 h-20 mx-auto rounded-3xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
           <Smartphone size={38} />
         </div>
-        <h1 className="text-2xl font-extrabold mt-5">Install Lovely Enterprise App</h1>
+        <h1 className="text-2xl font-extrabold mt-5">Install Mahi and Muhi Traders App</h1>
         <p className="text-slate-400 text-sm mt-2">
           Install the PWA on your phone for fast access, offline static assets and a full-screen app experience.
         </p>

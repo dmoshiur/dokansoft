@@ -95,16 +95,16 @@ export const Settings: React.FC = () => {
       setSecondaryLicenseName(state.config.secondaryLicenseName || '');
       setAddress(state.config.address || '');
       setEmailAddress(state.config.emails?.[0] || '');
-      setLovelyProprietor(state.config.lovelyProprietor || 'Md. Moshiur Rahman Mohi');
+      setLovelyProprietor(state.config.lovelyProprietor || 'Md AsimUddin Mondal');
       setLovelyLicenseNo(state.config.lovelyLicenseNo || 'LIC-LE-998877');
       setLovelyPhone(state.config.lovelyPhone || '+8801712-345678');
-      setMahiProprietor(state.config.mahiProprietor || 'Mst. Muhi Begum');
+      setMahiProprietor(state.config.mahiProprietor || 'Md Abu Masum');
       setMahiLicenseNo(state.config.mahiLicenseNo || 'LIC-MM-112233');
       setMahiPhone(state.config.mahiPhone || '+8801911-223344');
 
       // Extended values
-      setSiteTitle(state.config.siteTitle || 'Lovely Enterprise | Premium Agro Inputs & Logistics');
-      setFaviconUrl(state.config.faviconUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=32&h=32&fit=crop');
+      setSiteTitle(state.config.siteTitle || 'M/S Mahi and Muhi Traders | Agro Traders & Logistics');
+      setFaviconUrl(state.config.faviconUrl || '/icons/mm-logo-192.png');
       setThemeColor(state.config.themeColor || 'Green');
 
       setFacebook(state.config.socialLinks?.facebook || '');
@@ -267,11 +267,11 @@ export const Settings: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Company 1: Lovely Enterprise */}
+                  {/* Allied Firm: Lovely Enterprise */}
                   <div className="space-y-4 p-6 rounded-2xl bg-slate-50/50 border border-slate-100">
                     <h4 className="text-sm font-black text-emerald-700 uppercase tracking-wider flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-                      Lovely Enterprise Information
+                      Lovely Enterprise (Allied Firm)
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
@@ -304,7 +304,7 @@ export const Settings: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Company 2: Mahi & Muhi Traders */}
+                  {/* Primary Firm: Mahi & Muhi Traders */}
                   <div className="space-y-4 p-6 rounded-2xl bg-slate-50/50 border border-slate-100">
                     <h4 className="text-sm font-black text-indigo-700 uppercase tracking-wider flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
@@ -574,7 +574,7 @@ export const Settings: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500">Proprietor Display Name (Replaces all Moshiur text)</label>
+                          <label className="text-xs font-bold text-slate-500">Proprietor Display Name (Replaces the default owner name on the website)</label>
                           <input 
                             type="text" 
                             value={aboutOwnerName} 

@@ -161,7 +161,7 @@ function SmsGateway({ onSaved }: GatewayProps) {
           <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sms.net.bd API key" />
         </Field>
         <Field label="Sender ID (optional)">
-          <input value={senderId} onChange={(e) => setSenderId(e.target.value)} placeholder="e.g. LovelyEnt" />
+          <input value={senderId} onChange={(e) => setSenderId(e.target.value)} placeholder="e.g. MahiMuhi" />
         </Field>
         <Field label="Default Content ID (optional)">
           <input value={contentId} onChange={(e) => setContentId(e.target.value)} placeholder="e.g. 1" />

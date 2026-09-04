@@ -76,7 +76,7 @@ export const ResetPassword: React.FC = () => {
             <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 mb-4 transform -rotate-3">
               <ShieldCheck size={32} className="text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Lovely Enterprise</h1>
+            <h1 className="text-2xl font-bold text-white tracking-tight">M/S Mahi and Muhi Traders</h1>
             <p className="text-slate-400 text-sm mt-1">Digital ERP Security System</p>
           </div>
 

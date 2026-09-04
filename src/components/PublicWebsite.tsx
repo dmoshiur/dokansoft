@@ -531,8 +531,17 @@ export default function PublicWebsite({
         >
           <div className="max-w-7xl mx-auto w-full px-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl bg-brand-800 flex items-center justify-center text-white shadow-lg shadow-brand-800/20 shrink-0">
-                <Landmark className="w-5 h-5 md:w-7 md:h-7" />
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-800/20 shrink-0 overflow-hidden bg-brand-800">
+                {config.faviconUrl && config.faviconUrl.includes('mm-logo') ? (
+                  <img
+                    src={config.faviconUrl}
+                    alt="Mahi and Muhi Traders logo"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <Landmark className="w-5 h-5 md:w-7 md:h-7" />
+                )}
               </div>
               <div className="overflow-hidden">
                 <h1 className="text-lg md:text-2xl font-extrabold text-natural-text tracking-tight leading-none truncate uppercase">
@@ -985,7 +994,7 @@ export default function PublicWebsite({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Company 1: Lovely Enterprise */}
+                  {/* Company 1: Mahi & Muhi Traders (Primary) */}
                   <div className="bg-white border border-slate-200 shadow-md hover:shadow-xl transition-all p-8 flex flex-col justify-between relative overflow-hidden rounded-none">
                     <div className="absolute top-0 left-0 w-2 h-full bg-brand-800" />
                     <div>
@@ -995,7 +1004,7 @@ export default function PublicWebsite({
                         </div>
                         <div>
                           <h3 className="font-extrabold text-slate-900 text-lg uppercase tracking-tight">
-                            M/S Lovely Enterprise
+                            M/S Mahi and Muhi Traders
                           </h3>
                           <p className="text-[10px] text-brand-800 font-bold uppercase tracking-wider">
                             Primary Distributor
@@ -1006,25 +1015,25 @@ export default function PublicWebsite({
                       <div className="space-y-3.5 text-xs text-slate-600 font-sans border-t border-slate-100 pt-4">
                         <div className="flex justify-between py-1 border-b border-slate-50">
                           <span className="font-bold text-slate-400">PROPRIETOR:</span>
-                          <span className="font-extrabold text-slate-800 uppercase">{config.lovelyProprietor || config.proprietorName}</span>
+                          <span className="font-extrabold text-slate-800 uppercase">{config.mahiProprietor || config.proprietorName || "Md Abu Masum"}</span>
                         </div>
                         <div className="flex justify-between py-1 border-b border-slate-50">
                           <span className="font-bold text-slate-400">LICENSE NO:</span>
-                          <span className="font-mono font-bold text-slate-800">{config.lovelyLicenseNo || "Valid Wholesale Seed Permit"}</span>
+                          <span className="font-mono font-bold text-slate-800">{config.mahiLicenseNo || "Govt Retailer & Storage Lic."}</span>
                         </div>
                         <div className="flex justify-between py-1">
                           <span className="font-bold text-slate-400">OFFICIAL PHONE:</span>
-                          <span className="font-mono font-bold text-slate-800">{config.lovelyPhone || config.phoneNumbers[0]}</span>
+                          <span className="font-mono font-bold text-slate-800">{config.mahiPhone || config.phoneNumbers[0]}</span>
                         </div>
                       </div>
                     </div>
                     <div className="mt-6 pt-4 border-t border-slate-100 text-[10px] text-slate-400 font-medium italic flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                      Verified agricultural logistics & wholesale operations.
+                      Primary pesticide, fertilizer & organic input dealer.
                     </div>
                   </div>
 
-                  {/* Company 2: Mahi & Muhi Traders */}
+                  {/* Company 2: Lovely Enterprise (Allied) */}
                   <div className="bg-white border border-slate-200 shadow-md hover:shadow-xl transition-all p-8 flex flex-col justify-between relative overflow-hidden rounded-none">
                     <div className="absolute top-0 left-0 w-2 h-full bg-natural-warm" />
                     <div>
@@ -1034,7 +1043,7 @@ export default function PublicWebsite({
                         </div>
                         <div>
                           <h3 className="font-extrabold text-slate-900 text-lg uppercase tracking-tight">
-                            M/S Mahi & Muhi Traders
+                            M/S Lovely Enterprise
                           </h3>
                           <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">
                             Allied Agro Agency
@@ -1045,21 +1054,21 @@ export default function PublicWebsite({
                       <div className="space-y-3.5 text-xs text-slate-600 font-sans border-t border-slate-100 pt-4">
                         <div className="flex justify-between py-1 border-b border-slate-50">
                           <span className="font-bold text-slate-400">PROPRIETOR:</span>
-                          <span className="font-extrabold text-slate-800 uppercase">{config.mahiProprietor || "Mahi & Muhi proprietor"}</span>
+                          <span className="font-extrabold text-slate-800 uppercase">{config.lovelyProprietor || "Md AsimUddin Mondal"}</span>
                         </div>
                         <div className="flex justify-between py-1 border-b border-slate-50">
                           <span className="font-bold text-slate-400">LICENSE NO:</span>
-                          <span className="font-mono font-bold text-slate-800">{config.mahiLicenseNo || "Govt Retailer & Storage Lic."}</span>
+                          <span className="font-mono font-bold text-slate-800">{config.lovelyLicenseNo || "Valid Wholesale Seed Permit"}</span>
                         </div>
                         <div className="flex justify-between py-1">
                           <span className="font-bold text-slate-400">OFFICIAL PHONE:</span>
-                          <span className="font-mono font-bold text-slate-800">{config.mahiPhone || "017XXXXXXXX"}</span>
+                          <span className="font-mono font-bold text-slate-800">{config.lovelyPhone || config.phoneNumbers[1]}</span>
                         </div>
                       </div>
                     </div>
                     <div className="mt-6 pt-4 border-t border-slate-100 text-[10px] text-slate-400 font-medium italic flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-amber-500 shrink-0" />
-                      Primary pesticide, fertilizer & organic input dealer.
+                      Verified agricultural logistics & wholesale operations.
                     </div>
                   </div>
                 </div>
@@ -1071,7 +1080,7 @@ export default function PublicWebsite({
                   <div className="w-28 h-28 md:w-36 md:h-36 rounded-full overflow-hidden shrink-0 border-4 border-brand-100 shadow-inner bg-slate-100">
                     <img 
                       src={config.aboutOwnerImage || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200"} 
-                      alt={config.aboutOwnerName || "Md. Moshiur Rahman Mohi"}
+                      alt={config.aboutOwnerName || "Md Abu Masum"}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
@@ -1084,12 +1093,12 @@ export default function PublicWebsite({
                       {config.aboutTitle || "About Our Leadership"}
                     </h2>
                     <p className="text-sm text-natural-muted mt-3 leading-relaxed">
-                      {config.aboutDesc || "Established with a goal of reinforcing Bangladesh's agricultural backbone, we supply certified high-yield hybrid rice, maize, and vegetable seeds, alongside high-grade eco-friendly organic pesticides and fertilizers. Under leadership of proprietor Md. Moshiur Rahman Mohi, we have expanded to Gazipur and Jamalpur as regional logistics partners."}
+                      {config.aboutDesc || "Established with a goal of reinforcing Bangladesh's agricultural backbone, we supply certified high-yield hybrid rice, maize, and vegetable seeds, alongside high-grade eco-friendly organic pesticides and fertilizers. Under leadership of proprietor Md Abu Masum, we serve the farming community of Punot Bazar, Kalai, Rajshahi as a trusted seed, chemical and fertilizer distributor."}
                     </p>
                     <div className="mt-4 flex items-center justify-center md:justify-start gap-2 text-xs font-semibold text-brand-800">
-                      <span>Proprietor & Director:</span>
+                      <span>Proprietor:</span>
                       <span className="font-bold text-natural-text uppercase bg-natural-sage/20 px-2 py-0.5 rounded-md">
-                        {config.aboutOwnerName || "Md. Moshiur Rahman Mohi"}
+                        {config.aboutOwnerName || "Md Abu Masum"}
                       </span>
                     </div>
                   </div>
@@ -1336,7 +1345,7 @@ export default function PublicWebsite({
                       Licensing, Certifications & Achievements
                     </h2>
                     <p className="text-natural-muted mt-2 text-xs md:text-sm leading-relaxed font-sans">
-                      Lovely Group maintains pristine standards, verified
+                      M/S Mahi and Muhi Traders maintains pristine standards, verified
                       agricultural licenses, and holds prestigious dealership statuses
                       from public and private sectors.
                     </p>
@@ -1592,7 +1601,7 @@ export default function PublicWebsite({
                         allowFullScreen={false}
                         loading="lazy"
                         referrerPolicy="no-referrer-when-downgrade"
-                        title="Lovely Enterprise Location Map"
+                        title="M/S Mahi and Muhi Traders Location Map"
                       ></iframe>
                     </div>
                   </div>
@@ -1924,7 +1933,7 @@ export default function PublicWebsite({
         target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95"
-        title="Chat with M/S Lovely Enterprise on WhatsApp"
+        title={`Chat with ${config.shopName} on WhatsApp`}
       >
         <svg
           className="w-7 h-7 fill-current"

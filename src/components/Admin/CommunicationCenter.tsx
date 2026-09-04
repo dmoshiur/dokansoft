@@ -932,7 +932,7 @@ const VoiceTemplatesList = ({ templates, isLoading, onRefresh }: { templates: Vo
                   rows={3}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Hello {CustomerName}, this is a friendly call from Lovely Enterprise to invite you..."
+                  placeholder="Hello {CustomerName}, this is a friendly call from M/S Mahi and Muhi Traders to invite you..."
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                 />
                 <p className="text-[11px] text-slate-400 font-bold mt-1.5 uppercase">Variables supported: {"{CustomerName}"}, {"{DueAmount}"}</p>
