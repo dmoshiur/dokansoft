@@ -29,6 +29,7 @@ import { cn } from '../../lib/utils';
 import { useERPStore } from '../../store';
 import { Customer, LedgerEntry, PaymentTransaction } from '../../types';
 import { toast } from 'sonner';
+import { useSubmitGuard } from '../../lib/useSubmitGuard';
 
 export const CRM: React.FC = () => {
   const store = useERPStore();
@@ -140,9 +141,12 @@ export const CRM: React.FC = () => {
     setIsAddEditOpen(true);
   };
 
+  // Double-submit protection (double click / double tap / slow network).
+  const custGuard = useSubmitGuard();
+  const ledgerGuard = useSubmitGuard();
+
   // Save Customer (Add or Edit)
-  const handleSaveCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveCustomer = custGuard.guard(async (idempotencyKey) => {
     if (!formName.trim()) {
       toast.error('Customer name is required.');
       return;
@@ -169,7 +173,7 @@ export const CRM: React.FC = () => {
       }
     } else {
       // Add mode
-      await addCustomer({
+      const res = await addCustomer({
         name: formName,
         phone: formPhone,
         email: formEmail,
@@ -179,12 +183,21 @@ export const CRM: React.FC = () => {
         area: formArea,
         serialNumber: formSerial,
         status: formStatus
-      });
+      }, idempotencyKey);
+      if (!res.ok) {
+        // Duplicate mobile number — keep the form open so it can be corrected.
+        toast.error(res.error || 'Failed to register customer');
+        if (res.existing) {
+          toast.info(`Existing record: ${res.existing.name} — ${res.existing.phone || 'no number'}`);
+        }
+        return;
+      }
       toast.success(`Successfully registered customer ${formName}`);
     }
 
+    custGuard.resetKey();
     setIsAddEditOpen(false);
-  };
+  });
 
   // Delete Customer
   const handleDeleteCustomer = async (id: string, name: string, e: React.MouseEvent) => {
@@ -199,8 +212,7 @@ export const CRM: React.FC = () => {
   };
 
   // Handle manual ledger entry from viewing profile
-  const handleAddLedgerAdjust = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddLedgerAdjust = ledgerGuard.guard(async (idempotencyKey) => {
     if (!viewingCustomer) return;
     const amount = parseFloat(ledgerAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -212,7 +224,11 @@ export const CRM: React.FC = () => {
       return;
     }
 
-    await addLedgerEntry(viewingCustomer.id, ledgerType, ledgerDescription, amount);
+    const res = await addLedgerEntry(viewingCustomer.id, ledgerType, ledgerDescription, amount, undefined, idempotencyKey);
+    if (!res.ok) {
+      toast.error(res.error || 'Duplicate ledger entry skipped');
+      return;
+    }
     toast.success(`Ledger transaction of ৳${amount.toLocaleString()} registered successfully!`);
     
     // Refresh viewing customer to reflect new dueAmount
@@ -224,8 +240,9 @@ export const CRM: React.FC = () => {
     // Reset inputs
     setLedgerAmount('');
     setLedgerDescription('');
+    ledgerGuard.resetKey();
     setIsAdjustLedgerOpen(false);
-  };
+  });
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -831,9 +848,10 @@ export const CRM: React.FC = () => {
                   </button>
                   <button 
                     type="submit" 
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-widest cursor-pointer shadow-sm shadow-emerald-200"
+                    disabled={custGuard.submitting}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs uppercase tracking-widest cursor-pointer shadow-sm shadow-emerald-200"
                   >
-                    {editingCustomer ? 'Update Profile' : 'Save Customer'}
+                    {custGuard.submitting ? 'Saving…' : editingCustomer ? 'Update Profile' : 'Save Customer'}
                   </button>
                 </div>
               </form>
@@ -907,12 +925,13 @@ export const CRM: React.FC = () => {
                   </button>
                   <button 
                     type="submit" 
+                    disabled={ledgerGuard.submitting}
                     className={cn(
-                      "flex-1 py-2 text-white text-xs font-bold rounded-xl uppercase cursor-pointer shadow-sm",
+                      "flex-1 py-2 text-white text-xs font-bold rounded-xl uppercase cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed",
                       ledgerType === 'PURCHASE' ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200" : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
                     )}
                   >
-                    Submit Entry
+                    {ledgerGuard.submitting ? 'Saving…' : 'Submit Entry'}
                   </button>
                 </div>
               </form>

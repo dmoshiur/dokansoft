@@ -175,6 +175,63 @@ function seedState(): AccountingState {
   };
 }
 
+/**
+ * Canonical phone key used to detect duplicate parties: digits only, country
+ * code and leading zero stripped, so 01711-001122, +8801711001122 and
+ * 8801711001122 all collapse to the same value.
+ */
+export function partyPhoneKey(phone?: string): string {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length >= 13 && digits.startsWith('880')) return digits.slice(3);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  return digits;
+}
+
+export function partyNameKey(name?: string): string {
+  return String(name ?? '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Find an existing party that clashes with the given name/phone. */
+export function findDuplicateParty(
+  parties: Party[],
+  p: { type: Party['type']; name: string; phone?: string },
+  ignoreId?: string,
+): Party | undefined {
+  const pk = partyPhoneKey(p.phone);
+  const nk = partyNameKey(p.name);
+  return parties.find((x) => {
+    if (x.id === ignoreId) return false;
+    if (x.type !== p.type) return false;
+    if (pk) return partyPhoneKey(x.phone) === pk;
+    return !partyPhoneKey(x.phone) && partyNameKey(x.name) === nk;
+  });
+}
+
+/**
+ * In-memory guard against the same entry being committed twice within a short
+ * window — this is what actually stops a double-click / double-tap from
+ * creating two identical hisab entries, even before React state settles.
+ */
+const RECENT_WRITE_WINDOW_MS = 2500;
+const recentWrites = new Map<string, number>();
+
+function isRecentDuplicate(fingerprint: string): boolean {
+  const now = Date.now();
+  // opportunistic cleanup
+  for (const [k, t] of recentWrites) {
+    if (now - t > RECENT_WRITE_WINDOW_MS) recentWrites.delete(k);
+  }
+  const last = recentWrites.get(fingerprint);
+  if (last !== undefined && now - last <= RECENT_WRITE_WINDOW_MS) return true;
+  recentWrites.set(fingerprint, now);
+  return false;
+}
+
 function currentUserName(): string {
   if (typeof window === 'undefined') return 'System';
   try {
@@ -258,9 +315,37 @@ export const useAccountingStore = () => {
     }));
 
   // --- Parties (customers & suppliers) ---
-  const addParty = (p: Omit<Party, 'id' | 'createdAt'>) => {
-    mutate((s) => ({ ...s, parties: [{ ...p, id: uid(p.type === 'customer' ? 'cust' : 'sup'), createdAt: nowDateTime() }, ...s.parties] }));
+  /**
+   * Add a customer/supplier.
+   *
+   * Returns `{ ok: false, reason, existing }` instead of inserting when a party
+   * with the same mobile number (or same name when no number is given) already
+   * exists, or when the identical payload was just submitted (double click).
+   */
+  const addParty = (
+    p: Omit<Party, 'id' | 'createdAt'>,
+  ): { ok: boolean; reason?: string; existing?: Party } => {
+    const dup = findDuplicateParty(state.parties, p);
+    if (dup) {
+      return {
+        ok: false,
+        existing: dup,
+        reason: p.phone
+          ? 'এই মোবাইল নাম্বারে কাস্টমার আগে থেকেই আছে'
+          : 'এই নামে একজন আগে থেকেই আছে',
+      };
+    }
+    if (isRecentDuplicate(`party|${p.type}|${partyNameKey(p.name)}|${partyPhoneKey(p.phone)}`)) {
+      return { ok: false, reason: 'একই তথ্য একটু আগেই সেভ হয়েছে (ডুপ্লিকেট এড়ানো হলো)' };
+    }
+    mutate((s) => {
+      // Re-check inside the state updater: React 18 StrictMode invokes updaters
+      // twice in dev, and concurrent submits can interleave.
+      if (findDuplicateParty(s.parties, p)) return s;
+      return { ...s, parties: [{ ...p, id: uid(p.type === 'customer' ? 'cust' : 'sup'), createdAt: nowDateTime() }, ...s.parties] };
+    });
     logActivity(`${p.type === 'customer' ? 'নতুন কাস্টমার' : 'নতুন সরবরাহকারী'} — ${p.name}`);
+    return { ok: true };
   };
   const updateParty = (id: string, patch: Partial<Party>) =>
     mutate((s) => ({ ...s, parties: s.parties.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
@@ -275,9 +360,16 @@ export const useAccountingStore = () => {
     });
 
   // --- Sales ---
-  const addSale = (sale: Omit<Sale, 'id'>) => {
-    mutate((s) => ({ ...s, sales: [{ ...sale, id: uid('sale') }, ...s.sales] }));
+  const addSale = (sale: Omit<Sale, 'id'>): { ok: boolean; reason?: string } => {
+    if (isRecentDuplicate(`sale|${sale.customerId}|${sale.total}|${sale.date}|${sale.invoiceNo}`)) {
+      return { ok: false, reason: 'একই বিক্রি এন্ট্রি একটু আগেই সেভ হয়েছে (ডুপ্লিকেট এড়ানো হলো)' };
+    }
+    // The id is generated *outside* the updater so a re-run of the updater
+    // (StrictMode / concurrent render) can be detected and ignored.
+    const id = uid('sale');
+    mutate((s) => (s.sales.some((x) => x.id === id) ? s : { ...s, sales: [{ ...sale, id }, ...s.sales] }));
     logActivity(`নতুন বিক্রি ${sale.invoiceNo} — ৳${sale.total.toLocaleString()}`);
+    return { ok: true };
   };
   const updateSale = (id: string, patch: Partial<Sale>) =>
     mutate((s) => ({ ...s, sales: s.sales.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
@@ -292,9 +384,14 @@ export const useAccountingStore = () => {
     });
 
   // --- Purchases ---
-  const addPurchase = (p: Omit<Purchase, 'id'>) => {
-    mutate((s) => ({ ...s, purchases: [{ ...p, id: uid('pur') }, ...s.purchases] }));
+  const addPurchase = (p: Omit<Purchase, 'id'>): { ok: boolean; reason?: string } => {
+    if (isRecentDuplicate(`purchase|${p.supplierId}|${p.total}|${p.date}`)) {
+      return { ok: false, reason: 'একই ক্রয় এন্ট্রি একটু আগেই সেভ হয়েছে (ডুপ্লিকেট এড়ানো হলো)' };
+    }
+    const id = uid('pur');
+    mutate((s) => (s.purchases.some((x) => x.id === id) ? s : { ...s, purchases: [{ ...p, id }, ...s.purchases] }));
     logActivity(`নতুন কেনাকাটা — ৳${p.total.toLocaleString()}`);
+    return { ok: true };
   };
   const updatePurchase = (id: string, patch: Partial<Purchase>) =>
     mutate((s) => ({ ...s, purchases: s.purchases.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
@@ -309,9 +406,14 @@ export const useAccountingStore = () => {
     });
 
   // --- Income / Expense ---
-  const addMoneyTxn = (t: Omit<MoneyTxn, 'id'>) => {
-    mutate((s) => ({ ...s, moneyTxns: [{ ...t, id: uid(t.type === 'income' ? 'inc' : 'exp') }, ...s.moneyTxns] }));
+  const addMoneyTxn = (t: Omit<MoneyTxn, 'id'>): { ok: boolean; reason?: string } => {
+    if (isRecentDuplicate(`money|${t.type}|${t.category}|${t.amount}|${t.date}|${t.party || ''}`)) {
+      return { ok: false, reason: 'একই এন্ট্রি একটু আগেই সেভ হয়েছে (ডুপ্লিকেট এড়ানো হলো)' };
+    }
+    const id = uid(t.type === 'income' ? 'inc' : 'exp');
+    mutate((s) => (s.moneyTxns.some((x) => x.id === id) ? s : { ...s, moneyTxns: [{ ...t, id }, ...s.moneyTxns] }));
     logActivity(`${t.type === 'income' ? 'আয়' : 'খরচ'} যোগ — ${t.category} ৳${t.amount.toLocaleString()}`);
+    return { ok: true };
   };
   const deleteMoneyTxn = (id: string) =>
     mutate((s) => {
@@ -324,9 +426,14 @@ export const useAccountingStore = () => {
     });
 
   // --- Payments ---
-  const addPayment = (p: Omit<Payment, 'id'>) => {
-    mutate((s) => ({ ...s, payments: [{ ...p, id: uid('pay') }, ...s.payments] }));
+  const addPayment = (p: Omit<Payment, 'id'>): { ok: boolean; reason?: string } => {
+    if (isRecentDuplicate(`payment|${p.direction}|${p.partyId}|${p.amount}|${p.date}|${p.method}`)) {
+      return { ok: false, reason: 'একই লেনদেন একটু আগেই সেভ হয়েছে (ডুপ্লিকেট এড়ানো হলো)' };
+    }
+    const id = uid('pay');
+    mutate((s) => (s.payments.some((x) => x.id === id) ? s : { ...s, payments: [{ ...p, id }, ...s.payments] }));
     logActivity(`${p.direction === 'receive' ? 'টাকা গ্রহণ' : 'টাকা প্রদান'} — ${p.partyName} ৳${p.amount.toLocaleString()}`);
+    return { ok: true };
   };
   const deletePayment = (id: string) =>
     mutate((s) => {
@@ -345,8 +452,14 @@ export const useAccountingStore = () => {
     mutate((s) => ({ ...s, bankAccounts: s.bankAccounts.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
   const deleteBankAccount = (id: string) =>
     mutate((s) => ({ ...s, bankAccounts: s.bankAccounts.filter((a) => a.id !== id) }));
-  const addBankTxn = (t: Omit<BankTxn, 'id'>) =>
-    mutate((s) => ({ ...s, bankTxns: [{ ...t, id: uid('bt') }, ...s.bankTxns] }));
+  const addBankTxn = (t: Omit<BankTxn, 'id'>): { ok: boolean; reason?: string } => {
+    if (isRecentDuplicate(`bank|${t.accountId}|${t.type}|${t.amount}|${t.date}`)) {
+      return { ok: false, reason: 'একই ব্যাংক লেনদেন একটু আগেই সেভ হয়েছে (ডুপ্লিকেট এড়ানো হলো)' };
+    }
+    const id = uid('bt');
+    mutate((s) => (s.bankTxns.some((x) => x.id === id) ? s : { ...s, bankTxns: [{ ...t, id }, ...s.bankTxns] }));
+    return { ok: true };
+  };
   const deleteBankTxn = (id: string) =>
     mutate((s) => ({ ...s, bankTxns: s.bankTxns.filter((t) => t.id !== id) }));
 
@@ -447,6 +560,8 @@ export const useAccountingStore = () => {
     restoreTrash, purgeTrash, emptyTrash,
     saveProfile, saveSettings, setOpeningBalance,
     logActivity, resetAll,
+    findDuplicate: (p: { type: Party['type']; name: string; phone?: string }, ignoreId?: string) =>
+      findDuplicateParty(state.parties, p, ignoreId),
   };
 };
 

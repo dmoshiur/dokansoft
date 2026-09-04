@@ -8,6 +8,7 @@ import { BankAccountType } from '../../../accounting/types';
 import { fmtMoney, fmtDate, todayISO } from '../../../accounting/format';
 import { accountBalance } from '../../../accounting/store';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, Select, Table, Th, Td } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -26,20 +27,25 @@ export const Bank: React.FC<{ store: Store }> = ({ store }) => {
   const txns = s.bankTxns.slice().reverse();
   const totalBalance = accounts.reduce((a, acc) => a + accountBalance(s, acc.id), 0);
 
-  const submitAccount = (e: React.FormEvent) => {
-    e.preventDefault();
+  const acctGuard = useSubmitGuard();
+  const btxnGuard = useSubmitGuard();
+
+  const submitAccount = acctGuard.guard(() => {
     if (!acctForm.name.trim()) { toast.error('নাম দিন'); return; }
+    if (accounts.some((a) => a.name.trim().toLowerCase() === acctForm.name.trim().toLowerCase())) {
+      toast.error('এই নামে অ্যাকাউন্ট আগে থেকেই আছে'); return;
+    }
     addBankAccount({ name: acctForm.name, type: acctForm.type, accountNo: acctForm.accountNo, openingBalance: parseFloat(acctForm.openingBalance) || 0 });
     toast.success('অ্যাকাউন্ট যোগ হয়েছে');
+    acctGuard.resetKey();
     setModal(null);
-  };
+  });
 
-  const submitTxn = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitTxn = btxnGuard.guard(() => {
     const amt = parseFloat(txnForm.amount);
     if (!txnForm.accountId || !amt) { toast.error('অ্যাকাউন্ট ও পরিমাণ দিন'); return; }
     const acc = accounts.find((a) => a.id === txnForm.accountId);
-    addBankTxn({
+    const res = addBankTxn({
       accountId: txnForm.accountId, accountName: acc?.name || '',
       type: txnForm.type as 'deposit' | 'withdraw' | 'transfer',
       amount: amt, date: todayISO(),
@@ -47,9 +53,11 @@ export const Bank: React.FC<{ store: Store }> = ({ store }) => {
       toAccountName: txnForm.type === 'transfer' ? accounts.find((a) => a.id === txnForm.toAccountId)?.name : undefined,
       note: txnForm.note,
     });
+    if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট লেনদেন'); return; }
     toast.success('লেনদেন যোগ হয়েছে');
+    btxnGuard.resetKey();
     setModal(null);
-  };
+  });
 
   return (
     <div>
@@ -116,7 +124,7 @@ export const Bank: React.FC<{ store: Store }> = ({ store }) => {
           </Field>
           <Field label="অ্যাকাউন্ট নম্বর"><Input value={acctForm.accountNo} onChange={(e) => setAcctForm({ ...acctForm, accountNo: e.target.value })} /></Field>
           <Field label="Opening balance"><Input type="number" value={acctForm.openingBalance} onChange={(e) => setAcctForm({ ...acctForm, openingBalance: e.target.value })} /></Field>
-          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setModal(null)}>বাতিল</Button><Button type="submit">সংরক্ষণ</Button></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={acctGuard.submitting} onClick={() => setModal(null)}>বাতিল</Button><Button type="submit" disabled={acctGuard.submitting}>{acctGuard.submitting ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ'}</Button></div>
         </form>
       </Modal>
 
@@ -143,7 +151,7 @@ export const Bank: React.FC<{ store: Store }> = ({ store }) => {
           )}
           <Field label="পরিমাণ *"><Input type="number" value={txnForm.amount} onChange={(e) => setTxnForm({ ...txnForm, amount: e.target.value })} /></Field>
           <Field label="নোট"><Input value={txnForm.note} onChange={(e) => setTxnForm({ ...txnForm, note: e.target.value })} /></Field>
-          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setModal(null)}>বাতিল</Button><Button type="submit">সংরক্ষণ</Button></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={btxnGuard.submitting} onClick={() => setModal(null)}>বাতিল</Button><Button type="submit" disabled={btxnGuard.submitting}>{btxnGuard.submitting ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ'}</Button></div>
         </form>
       </Modal>
     </div>

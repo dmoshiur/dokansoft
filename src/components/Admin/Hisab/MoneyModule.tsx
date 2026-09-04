@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { MoneyTxn } from '../../../accounting/types';
 import { fmtMoney, fmtDate, todayISO, downloadCSV } from '../../../accounting/format';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, Select, TextArea, Table, Th, Td, EmptyState } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -49,13 +50,16 @@ const MoneyModule: React.FC<{ store: Store; type: 'income' | 'expense' }> = ({ s
 
   const openNew = () => { setForm({ category: cats[0], amount: '', date: todayISO(), party: '', method: 'Cash', note: '' }); setModal(true); };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const moneyGuard = useSubmitGuard();
+
+  const submit = moneyGuard.guard(() => {
     if (!form.category || !parseFloat(form.amount)) { toast.error('ধরন ও পরিমাণ দিন'); return; }
-    addMoneyTxn({ type, category: form.category, amount: parseFloat(form.amount), date: form.date, party: form.party, method: form.method, note: form.note });
+    const res = addMoneyTxn({ type, category: form.category, amount: parseFloat(form.amount), date: form.date, party: form.party, method: form.method, note: form.note });
+    if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট এন্ট্রি'); return; }
     toast.success(isIncome ? 'আয় যোগ হয়েছে' : 'খরচ যোগ হয়েছে');
+    moneyGuard.resetKey();
     setModal(false);
-  };
+  });
 
   const exportCSV = () => {
     downloadCSV(`${type}-report.csv`, [
@@ -150,7 +154,7 @@ const MoneyModule: React.FC<{ store: Store; type: 'income' | 'expense' }> = ({ s
           <Field label="নোট / বিবরণ"><TextArea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setModal(false)}>বাতিল</Button>
-            <Button type="submit">সংরক্ষণ</Button>
+            <Button type="submit" disabled={moneyGuard.submitting}>{moneyGuard.submitting ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ'}</Button>
           </div>
         </form>
       </Modal>

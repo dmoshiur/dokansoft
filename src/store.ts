@@ -40,6 +40,15 @@ import {
 // Standard storage key
 const STORAGE_KEY = "lovely_enterprise_erp_data_v2";
 
+/** Canonical mobile-number key used for duplicate detection. */
+export const normalizePhoneKey = (phone?: string): string => {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length >= 13 && digits.startsWith("880")) return digits.slice(3);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  return digits;
+};
+
 const INITIAL_WA_MULTI_SETTINGS: WhatsAppMultiProviderSettings = {
   activeProvider: "Baileys",
   baileys: {
@@ -572,37 +581,76 @@ export const useERPStore = () => {
     }));
   };
 
+  /**
+   * Register a customer. The server is the source of truth for duplicate
+   * detection (unique mobile number); we only add to local state once the
+   * server has accepted the insert, so a rejected duplicate never appears
+   * twice in the UI.
+   */
   const addCustomer = async (
     cust: Omit<Customer, "id" | "dueAmount" | "documents">,
-  ) => {
+    idempotencyKey?: string,
+  ): Promise<{ ok: boolean; error?: string; existing?: any }> => {
+    const phoneNorm = normalizePhoneKey(cust.phone);
+    const localDup = state.customers.find(
+      (c) =>
+        (phoneNorm && normalizePhoneKey(c.phone) === phoneNorm) ||
+        (!phoneNorm && c.name.trim().toLowerCase() === String(cust.name).trim().toLowerCase()),
+    );
+    if (localDup) {
+      return {
+        ok: false,
+        error: cust.phone
+          ? "এই মোবাইল নাম্বারে কাস্টমার আগে থেকেই আছে / A customer with this mobile number already exists"
+          : "এই নামে কাস্টমার আগে থেকেই আছে",
+        existing: localDup,
+      };
+    }
+
     const newCust: Customer = {
       ...cust,
-      id: `cust-${Date.now()}`,
+      id: `cust-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       dueAmount: 0,
       documents: [],
     };
-    setState((prev) => ({ ...prev, customers: [...prev.customers, newCust] }));
+
+    const token = localStorage.getItem("erp_token") || localStorage.getItem("lovely_erp_token");
+    if (token) {
+      try {
+        const res = await fetch("/api/erp/customers", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "X-Idempotency-Key": idempotencyKey || newCust.id,
+          },
+          body: JSON.stringify(newCust)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.duplicate) {
+          return {
+            ok: false,
+            error: data.error || "Failed to save customer",
+            existing: data.existing,
+          };
+        }
+      } catch (err) {
+        console.error("Failed to sync new customer to server:", err);
+        return { ok: false, error: "নেটওয়ার্ক সমস্যা — কাস্টমার সেভ হয়নি / network error" };
+      }
+    }
+
+    setState((prev) =>
+      prev.customers.some((c) => c.id === newCust.id)
+        ? prev
+        : { ...prev, customers: [...prev.customers, newCust] },
+    );
     addAuditLog(
       "ADD_CUSTOMER",
       "Customer Management",
       `Registered customer ${cust.name}`,
     );
-
-    const token = localStorage.getItem("erp_token") || localStorage.getItem("lovely_erp_token");
-    if (token) {
-      try {
-        await fetch("/api/erp/customers", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify(newCust)
-        });
-      } catch (err) {
-        console.error("Failed to sync new customer to server:", err);
-      }
-    }
+    return { ok: true };
   };
 
   const updateCustomer = async (updated: Customer) => {
@@ -698,13 +746,31 @@ export const useERPStore = () => {
     description: string,
     amount: number,
     customDate?: string,
-  ) => {
-    const transactionId = `led-${Date.now()}`;
+    idempotencyKey?: string,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const transactionId = `led-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const date = customDate || new Date().toISOString().split("T")[0];
+
+    // Guard against an identical entry submitted moments ago (double click).
+    const dup = state.ledger.find(
+      (l) =>
+        l.customerId === customerId &&
+        l.type === type &&
+        l.amount === amount &&
+        l.date === date &&
+        l.description === description,
+    );
+    if (dup) {
+      return {
+        ok: false,
+        error: "একই হিসাব এন্ট্রি আগেই সেভ হয়েছে / an identical entry already exists",
+      };
+    }
 
     let runningBalanceValue = 0;
 
     setState((prev) => {
+      if (prev.ledger.some((l) => l.id === transactionId)) return prev;
       // 1. Gather existing ledger for customer
       const existingLedger = prev.ledger.filter(
         (l) => l.customerId === customerId,
@@ -764,11 +830,12 @@ export const useERPStore = () => {
     const token = localStorage.getItem("erp_token") || localStorage.getItem("lovely_erp_token");
     if (token) {
       try {
-        await fetch("/api/erp/ledger", {
+        const res = await fetch("/api/erp/ledger", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            "Authorization": `Bearer ${token}`,
+            "X-Idempotency-Key": idempotencyKey || transactionId,
           },
           body: JSON.stringify({
             id: transactionId,
@@ -780,6 +847,16 @@ export const useERPStore = () => {
             runningBalance: runningBalanceValue
           })
         });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok && data.duplicate) {
+          // Server rejected it as a duplicate — roll the optimistic entry back
+          // so the UI never shows the same hisab entry twice.
+          setState((prev) => ({
+            ...prev,
+            ledger: prev.ledger.filter((l) => l.id !== transactionId),
+          }));
+          return { ok: false, error: data.error || "ডুপ্লিকেট হিসাব এন্ট্রি" };
+        }
       } catch (err) {
         console.error("Failed to sync ledger entry to server:", err);
       }
@@ -817,6 +894,7 @@ export const useERPStore = () => {
         );
       }
     }
+    return { ok: true };
   };
 
   const addInvoice = async (

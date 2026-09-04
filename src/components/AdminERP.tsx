@@ -9,6 +9,8 @@ import { AwardsManagement } from './Admin/AwardsManagement';
 import { AdminInbox } from './Admin/AdminInbox';
 import { AdminManagement } from './Admin/AdminManagement';
 import { NotificationGateways } from './Admin/NotificationGateways';
+import { SmsLog } from './Admin/SmsLog';
+import { DuplicateReport } from './Admin/DuplicateReport';
 import { HisabHub } from './Admin/Hisab/HisabHub';
 import { useERPStore } from '../store';
 import { Toaster } from 'sonner';
@@ -48,7 +50,9 @@ const AdminERP: React.FC<AdminERPProps> = ({ onLogout, role }) => {
         {activeTab === 'awards' && <AwardsManagement />}
         {activeTab === 'inbox' && <AdminInbox />}
         {activeTab === 'settings' && activeSubTab === 'gateways' && <NotificationGateways />}
-        {activeTab === 'settings' && activeSubTab !== 'gateways' && <Settings />}
+        {activeTab === 'settings' && activeSubTab === 'smsLog' && <SmsLog />}
+        {activeTab === 'settings' && activeSubTab === 'duplicates' && <DuplicateReport />}
+        {activeTab === 'settings' && !['gateways', 'smsLog', 'duplicates'].includes(activeSubTab) && <Settings />}
         {activeTab === 'adminManagement' && <AdminManagement />}
       </AdminLayout>
       <Toaster position="top-right" richColors />

@@ -19,6 +19,8 @@ import {
   Calculator,
   PhoneCall,
   SlidersHorizontal,
+  ListChecks,
+  Copy,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -54,6 +56,8 @@ interface AdminLayoutProps {
 const SETTINGS_CHILDREN: MenuChild[] = [
   { id: 'settings', label: 'সাধারণ সেটিংস', sub: 'General Settings', icon: SlidersHorizontal, group: 'সেটিংস' },
   { id: 'gateways', label: 'নোটিফিকেশন গেটওয়ে', sub: 'Notification Gateways', icon: Share2, group: 'সেটিংস' },
+  { id: 'smsLog', label: 'SMS লগ', sub: 'SMS Log', icon: ListChecks, group: 'ডায়াগনস্টিকস' },
+  { id: 'duplicates', label: 'ডুপ্লিকেট রিপোর্ট', sub: 'Duplicate Report', icon: Copy, group: 'ডায়াগনস্টিকস' },
 ];
 
 const getMenuItems = (role: string): MenuItem[] => {

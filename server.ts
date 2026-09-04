@@ -21,6 +21,15 @@ import { EmailGatewayConfig } from "./src/services/mailer.ts";
 import { encryptSecret, decryptSecret } from "./src/services/security/gatewaySecrets.ts";
 import { startGatewayWorkers, refreshVoiceToggleFromConfig } from "./src/services/gateways/workers.ts";
 import { authenticateToken, isAdmin } from "./src/middleware/auth.ts";
+import {
+  findExistingCustomer,
+  findRecentDuplicateLedger,
+  getIdempotentResponse,
+  saveIdempotentResponse,
+  buildDuplicateReport,
+  ensureIntegrityIndexes,
+  phoneKey,
+} from "./src/services/db/dedupe.ts";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_key_2026';
 const configTokenPlaceholder = "••••••";
@@ -75,6 +84,9 @@ async function startServer() {
   console.error("[Queue Error]", err);
 }
   
+  // Data-integrity indexes (unique customer mobile number, idempotency keys).
+  await ensureIntegrityIndexes();
+
   // Start async gateway workers. These never block request cycles.
   startGatewayWorkers();
   
@@ -1028,13 +1040,47 @@ async function startServer() {
 
   app.post("/api/erp/customers", authenticateToken, async (req, res) => {
     try {
-      const customerData = req.body;
+      const customerData = req.body || {};
+      const idemKey =
+        String(req.headers["x-idempotency-key"] || customerData.idempotencyKey || "").trim();
+
+      // 1. Replay the original response when the same submit is retried.
+      const replay = await getIdempotentResponse("customers", idemKey);
+      if (replay) return res.json({ ...replay, idempotentReplay: true });
+
+      // 2. If the exact record already exists (same id), don't insert twice.
+      if (customerData.id) {
+        const existingById = await repository.getDocument<any>("customers", customerData.id);
+        if (existingById) {
+          return res.json({ success: true, id: existingById.id, duplicate: true, existing: existingById });
+        }
+      }
+
+      // 3. Reject duplicates by mobile number (or name when no number given).
+      const existing = await findExistingCustomer(customerData);
+      if (existing) {
+        return res.status(409).json({
+          error: customerData.phone
+            ? "এই মোবাইল নাম্বারে কাস্টমার আগে থেকেই আছে"
+            : "এই নামে কাস্টমার আগে থেকেই আছে",
+          errorEn: "A customer with this mobile number already exists",
+          duplicate: true,
+          existing: { id: existing.id, name: existing.name, phone: existing.phone },
+        });
+      }
+
+      const pk = phoneKey(customerData.phone);
       const id = await repository.addDocument("customers", {
         ...customerData,
+        // Stored normalised key backs the unique index.
+        ...(pk ? { phoneKey: pk } : {}),
         dueAmount: customerData.dueAmount || 0,
-        documents: customerData.documents || []
+        documents: customerData.documents || [],
+        createdAt: customerData.createdAt || new Date().toISOString(),
       });
-      res.json({ success: true, id });
+      const payload = { success: true, id };
+      await saveIdempotentResponse("customers", idemKey, payload);
+      res.json(payload);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -1043,7 +1089,23 @@ async function startServer() {
   app.put("/api/erp/customers/:id", authenticateToken, async (req, res) => {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+      const updateData = { ...(req.body || {}) };
+
+      // Editing a customer must not create a phone-number collision either.
+      if (updateData.phone !== undefined) {
+        const clash = await findExistingCustomer({ ...updateData, id });
+        if (clash) {
+          return res.status(409).json({
+            error: "এই মোবাইল নাম্বারে অন্য একজন কাস্টমার আগে থেকেই আছে",
+            errorEn: "Another customer already uses this mobile number",
+            duplicate: true,
+            existing: { id: clash.id, name: clash.name, phone: clash.phone },
+          });
+        }
+        const pk = phoneKey(updateData.phone);
+        if (pk) updateData.phoneKey = pk;
+      }
+
       await repository.updateDocument("customers", id, updateData);
       res.json({ success: true });
     } catch (err: any) {
@@ -1158,10 +1220,42 @@ async function startServer() {
 
   app.post("/api/erp/ledger", authenticateToken, async (req, res) => {
     try {
-      const entry = req.body;
+      const entry = { ...(req.body || {}) };
+      const db = getDb();
+      const idemKey =
+        String(req.headers["x-idempotency-key"] || entry.idempotencyKey || "").trim();
+
+      // 1. Same idempotency key → replay the first response, never re-insert.
+      const replay = await getIdempotentResponse("ledger", idemKey);
+      if (replay) return res.json({ ...replay, idempotentReplay: true });
+
+      // 2. Same explicit entry id already stored → treat as duplicate submit.
+      if (entry.id) {
+        const existing = await db.collection("ledger").findOne({ id: entry.id });
+        if (existing) {
+          return res.json({
+            success: true,
+            id: existing.id,
+            duplicate: true,
+            runningBalance: existing.runningBalance,
+          });
+        }
+      }
+
+      // 3. Fallback guard: identical payload written seconds ago (double tap).
+      const recentDup = await findRecentDuplicateLedger(entry);
+      if (recentDup) {
+        return res.status(409).json({
+          error: "একই হিসাব এন্ট্রি একটু আগেই সেভ হয়েছে — ডুপ্লিকেট এড়াতে বাতিল করা হলো",
+          errorEn: "An identical hisab entry was just saved; duplicate skipped",
+          duplicate: true,
+          existing: { id: recentDup.id, amount: recentDup.amount, date: recentDup.date },
+        });
+      }
+
+      entry.createdAt = entry.createdAt || new Date().toISOString();
       const id = await repository.addDocument("ledger", entry);
 
-      const db = getDb();
       const entries = await db.collection("ledger").find({ customerId: entry.customerId }).toArray();
       const balance = entries.reduce((sum, item) => {
         if (item.type === "PURCHASE" || item.type === "DUE_CARRY_FORWARD") {
@@ -1176,7 +1270,9 @@ async function startServer() {
         { $set: { dueAmount: balance } }
       );
 
-      res.json({ success: true, id, runningBalance: balance });
+      const payload = { success: true, id, runningBalance: balance };
+      await saveIdempotentResponse("ledger", idemKey, payload);
+      res.json(payload);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -2007,6 +2103,44 @@ async function startServer() {
     }
   });
 
+  // --- Data Integrity: duplicate detection (READ-ONLY, never deletes) ---
+  app.get("/api/admin/duplicates", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const report = await buildDuplicateReport();
+      res.json(report);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/admin/duplicates/export.csv", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const report = await buildDuplicateReport();
+      const rows: string[] = ["entity,group_key,reason,duplicate_count,record_id,name_or_desc,phone_or_amount,date"];
+      const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      for (const g of report.customers) {
+        for (const r of g.records) {
+          rows.push(["customer", g.key, g.reason, g.count, r.id, r.name, r.phone, r.createdAt].map(esc).join(","));
+        }
+      }
+      for (const g of report.ledger) {
+        for (const r of g.records) {
+          rows.push(["ledger", g.key, g.reason, g.count, r.id, r.description, r.amount, r.date].map(esc).join(","));
+        }
+      }
+      for (const g of report.payments) {
+        for (const r of g.records) {
+          rows.push(["payment", g.key, g.reason, g.count, r.id, r.transactionId, r.amount, r.date || r.createdAt].map(esc).join(","));
+        }
+      }
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="duplicate-report.csv"');
+      res.send("\uFEFF" + rows.join("\n"));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // --- Notification & Gateway Settings Endpoints ---
   const maskGatewayConfig = async (key: string, fields: string[]) => {
     const config = await repository.getGatewayConfig<any>(key);
@@ -2105,10 +2239,44 @@ async function startServer() {
     }
   });
 
-  app.get("/api/gateways/sms/logs", authenticateToken, isAdmin, async (_req, res) => {
+  app.get("/api/gateways/sms/logs", authenticateToken, isAdmin, async (req, res) => {
     try {
-      const logs = await smsNetBdService.getLogs();
-      res.json(logs);
+      const status = String(req.query.status || "").toUpperCase();
+      const q = String(req.query.q || "").trim().toLowerCase();
+      let logs = await smsNetBdService.getLogs(1000);
+      if (status && status !== "ALL") {
+        logs = logs.filter((l: any) => String(l.status || "").toUpperCase() === status);
+      }
+      if (q) {
+        logs = logs.filter((l: any) =>
+          `${l.to || ""} ${l.msg || ""} ${l.error || ""} ${l.requestId || ""}`
+            .toLowerCase()
+            .includes(q),
+        );
+      }
+      const stats = await smsNetBdService.logStats();
+      res.json({ logs, stats });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Full SMS pipeline diagnostics: toggle, API key, balance, queue backlog.
+  app.get("/api/gateways/sms/diagnostics", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const diag = await smsNetBdService.diagnose();
+      const stats = await smsNetBdService.logStats();
+      res.json({ ...diag, logStats: stats });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Manually drain the notification queue (useful when the worker was down).
+  app.post("/api/gateways/sms/process-queue", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const result = await notificationService.processPending(50);
+      res.json({ success: true, ...result });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

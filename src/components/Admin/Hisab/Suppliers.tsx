@@ -8,6 +8,7 @@ import { Party } from '../../../accounting/types';
 import { fmtMoney, fmtDate, todayISO } from '../../../accounting/format';
 import { supplierBalance } from '../../../accounting/store';
 import { useAccountingStore } from '../../../accounting/store';
+import { useSubmitGuard } from '../../../lib/useSubmitGuard';
 import { Card, SectionTitle, Button, Badge, Modal, Field, Input, TextArea, Table, Th, Td, EmptyState } from './ui';
 
 type Store = ReturnType<typeof useAccountingStore>;
@@ -33,27 +34,34 @@ export const Suppliers: React.FC<{ store: Store }> = ({ store }) => {
     setModal('edit');
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const supGuard = useSubmitGuard();
+  const payGuard = useSubmitGuard();
+
+  const submit = supGuard.guard(() => {
     if (!form.name.trim()) { toast.error('সরবরাহকারীর নাম দিন'); return; }
     if (modal === 'add') {
-      addParty({ type: 'supplier', name: form.name, phone: form.phone, address: form.address, email: form.email, notes: form.notes, openingBalance: parseFloat(form.openingBalance) || 0 });
+      const res = addParty({ type: 'supplier', name: form.name, phone: form.phone, address: form.address, email: form.email, notes: form.notes, openingBalance: parseFloat(form.openingBalance) || 0 });
+      if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট সরবরাহকারী'); return; }
       toast.success('নতুন সরবরাহকারী যোগ হয়েছে');
     } else if (modal === 'edit' && target) {
+      const clash = store.findDuplicate({ type: 'supplier', name: form.name, phone: form.phone }, target.id);
+      if (clash) { toast.error('এই মোবাইল নাম্বারে অন্য একজন সরবরাহকারী আগে থেকেই আছে'); return; }
       updateParty(target.id, { name: form.name, phone: form.phone, address: form.address, email: form.email, notes: form.notes, openingBalance: parseFloat(form.openingBalance) || 0 });
       toast.success('আপডেট হয়েছে');
     }
+    supGuard.resetKey();
     setModal(null);
-  };
+  });
 
-  const submitPayment = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitPayment = payGuard.guard(() => {
     if (!target || !parseFloat(payForm.amount)) { toast.error('টাকার পরিমাণ দিন'); return; }
-    addPayment({ direction: 'pay', partyId: target.id, partyName: target.name, partyType: 'supplier', amount: parseFloat(payForm.amount), date: todayISO(), method: payForm.method, note: payForm.note });
+    const res = addPayment({ direction: 'pay', partyId: target.id, partyName: target.name, partyType: 'supplier', amount: parseFloat(payForm.amount), date: todayISO(), method: payForm.method, note: payForm.note });
+    if (!res.ok) { toast.error(res.reason || 'ডুপ্লিকেট এন্ট্রি'); return; }
     toast.success('পরিশোধ যোগ হয়েছে');
+    payGuard.resetKey();
     setModal(null);
     setPayForm({ amount: '', method: 'Cash', note: '' });
-  };
+  });
 
   const totalPayable = suppliers.reduce((a, c) => a + supplierBalance(s, c.id), 0);
 
@@ -112,8 +120,8 @@ export const Suppliers: React.FC<{ store: Store }> = ({ store }) => {
           <Field label="পূর্বের দেনা"><Input type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} /></Field>
           <Field label="নোট"><TextArea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setModal(null)}>বাতিল</Button>
-            <Button type="submit">সংরক্ষণ</Button>
+            <Button type="button" variant="outline" disabled={supGuard.submitting} onClick={() => setModal(null)}>বাতিল</Button>
+            <Button type="submit" disabled={supGuard.submitting}>{supGuard.submitting ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ'}</Button>
           </div>
         </form>
       </Modal>
@@ -173,8 +181,8 @@ export const Suppliers: React.FC<{ store: Store }> = ({ store }) => {
           </Field>
           <Field label="নোট"><Input value={payForm.note} onChange={(e) => setPayForm({ ...payForm, note: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setModal(null)}>বাতিল</Button>
-            <Button type="submit">সংরক্ষণ</Button>
+            <Button type="button" variant="outline" disabled={payGuard.submitting} onClick={() => setModal(null)}>বাতিল</Button>
+            <Button type="submit" disabled={payGuard.submitting}>{payGuard.submitting ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ'}</Button>
           </div>
         </form>
       </Modal>
