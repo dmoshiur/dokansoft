@@ -1,47 +1,10 @@
 import React, { useState } from 'react';
-import {
-  LayoutDashboard,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  Bell,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  MessageSquare,
-  Receipt,
-  Trophy,
-  Inbox,
-  UserCog,
-  Share2,
-  Calculator,
-  PhoneCall,
-  SlidersHorizontal,
-  ListChecks,
-  Copy,
-} from 'lucide-react';
+import { LogOut, Bell, Search, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { useERPStore } from '../../store';
-import { HISAB_NAV } from './Hisab/HisabHub';
-
-interface MenuChild {
-  id: string;
-  label: string;
-  sub?: string;
-  icon: React.ElementType;
-  group: string;
-}
-
-interface MenuItem {
-  id: string;
-  label: string;
-  sub?: string;
-  icon: React.ElementType;
-  children?: MenuChild[];
-}
+import { MenuItem, getMenuItems, groupChildren } from './adminMenu';
+import { MobileBottomNav, MobileMoreSheet } from './MobileNavigation';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -52,46 +15,6 @@ interface AdminLayoutProps {
   onLogout: () => void;
   role: string;
 }
-
-const SETTINGS_CHILDREN: MenuChild[] = [
-  { id: 'settings', label: 'সাধারণ সেটিংস', sub: 'General Settings', icon: SlidersHorizontal, group: 'সেটিংস' },
-  { id: 'gateways', label: 'নোটিফিকেশন গেটওয়ে', sub: 'Notification Gateways', icon: Share2, group: 'সেটিংস' },
-  { id: 'smsLog', label: 'SMS লগ', sub: 'SMS Log', icon: ListChecks, group: 'ডায়াগনস্টিকস' },
-  { id: 'duplicates', label: 'ডুপ্লিকেট রিপোর্ট', sub: 'Duplicate Report', icon: Copy, group: 'ডায়াগনস্টিকস' },
-];
-
-const getMenuItems = (role: string): MenuItem[] => {
-  const items: MenuItem[] = [
-    { id: 'dashboard', label: 'ড্যাশবোর্ড', sub: 'Dashboard', icon: LayoutDashboard },
-    { id: 'hisab', label: 'হালখাতা', sub: 'Hisab', icon: Calculator, children: HISAB_NAV },
-    { id: 'billing', label: 'বিলিং', sub: 'Billing / Memo', icon: Receipt },
-    { id: 'communication', label: 'যোগাযোগ', sub: 'Communication', icon: PhoneCall },
-    { id: 'whatsapp', label: 'হোয়াটসঅ্যাপ', sub: 'WhatsApp', icon: MessageSquare },
-    { id: 'awards', label: 'অ্যাওয়ার্ড', sub: 'Awards Management', icon: Trophy },
-    { id: 'inbox', label: 'ইনবক্স', sub: 'Admin Inbox', icon: Inbox },
-    { id: 'settings', label: 'সেটিংস', sub: 'Settings', icon: Settings, children: SETTINGS_CHILDREN },
-  ];
-
-  if (role === 'Super Admin' || role === 'admin') {
-    items.push({ id: 'adminManagement', label: 'অ্যাডমিন', sub: 'Admin Management', icon: UserCog });
-  }
-
-  return items;
-};
-
-// Group a parent's children by their `group` field (Hisab groups, Settings group, …).
-const groupChildren = (children: MenuChild[]): { group: string; items: MenuChild[] }[] => {
-  const groups: { group: string; items: MenuChild[] }[] = [];
-  const seen = new Set<string>();
-  for (const c of children) {
-    if (!seen.has(c.group)) {
-      seen.add(c.group);
-      groups.push({ group: c.group, items: [] });
-    }
-    groups.find((g) => g.group === c.group)!.items.push(c);
-  }
-  return groups;
-};
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
@@ -104,7 +27,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { state } = useERPStore();
 
   const shopName = state.config?.shopName || 'M/S Mahi and Muhi Traders';
@@ -178,7 +101,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     setExpanded(parentId);
   };
 
-  // Shared nav renderer used by both the desktop aside and the mobile drawer.
+  // Shared nav renderer used by the desktop sidebar.
   const renderNav = (opts: { collapsed: boolean; onNavigate?: () => void }) => (
     <nav className="space-y-1">
       {menuItems.map((item) => {
@@ -307,12 +230,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-20">
           <div className="flex items-center gap-4 flex-1">
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-            >
-              <Menu size={20} />
-            </button>
+            {/* Mobile brand mark — replaces the old hamburger (navigation now
+                lives in the bottom bar below md breakpoint) */}
+            <div className="flex md:hidden items-center gap-2 font-bold text-emerald-600">
+              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white text-xs font-black">
+                {monogram}
+              </div>
+              <span className="text-sm truncate max-w-[150px]">{brandShort}</span>
+            </div>
             <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-full px-4 py-1.5 w-full max-w-md gap-2 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500/50 transition-all">
               <Search size={18} className="text-slate-400" />
               <input
@@ -350,8 +275,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
         </header>
 
-        {/* Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
+        {/* Page Container — extra bottom padding below md so content is never
+            hidden behind the fixed mobile bottom navigation bar. */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-md:pb-28 custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${activeTab}-${activeSubTab}`}
@@ -366,47 +292,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </main>
       </div>
 
-      {/* Mobile Sidebar Drawer */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
-            />
-            <motion.aside
-              initial={{ x: -290 }}
-              animate={{ x: 0 }}
-              exit={{ x: -290 }}
-              className="fixed left-0 top-0 bottom-0 w-72 bg-white z-50 p-6 flex flex-col md:hidden overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 font-bold text-xl text-emerald-600">
-                  <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white text-sm font-black">{monogram}</div>
-                  <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[170px]">{brandShort}</span>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {renderNav({ collapsed: false, onNavigate: () => setIsMobileMenuOpen(false) })}
-              </div>
-
-              <div className="mt-auto pt-6 border-t border-slate-100">
-                <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                  <LogOut size={20} />
-                  <span className="font-medium">লগআউট</span>
-                </button>
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Mobile bottom navigation + "More" sheet (hidden on desktop, where
+          the sidebar above is used instead). */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        isMoreOpen={isMoreOpen}
+        onSelectTab={onSelectTab}
+        onToggleMore={() => setIsMoreOpen((v) => !v)}
+      />
+      <MobileMoreSheet
+        open={isMoreOpen}
+        onClose={() => setIsMoreOpen(false)}
+        menuItems={menuItems}
+        activeTab={activeTab}
+        activeSubTab={activeSubTab}
+        onSelectTab={onSelectTab}
+        onSelectSubTab={onSelectSubTab}
+        onLogout={onLogout}
+      />
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
@@ -422,6 +325,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #cbd5e1;
+        }
+        /* Max height for the "More" bottom sheet — dvh where supported so it
+           tracks the dynamic iOS toolbar, vh as a universal fallback. */
+        .more-sheet-max-h {
+          max-height: 85vh;
+          max-height: 85dvh;
         }
       `}</style>
     </div>
