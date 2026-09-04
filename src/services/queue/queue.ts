@@ -19,6 +19,18 @@ async function processCall(callLogId: string) {
 
   console.log(`[Queue] Processing call for ${callLog.customerName} (${callLog.phone})`);
 
+  // Voice calls are controlled by the admin Notification & Gateway toggle and
+  // default to OFF. When disabled we must never trigger a call or surface an
+  // error to the end user.
+  if (!voiceManager.isEnabled()) {
+    console.log(`[Queue] Voice call gateway is disabled. Skipping ${callLogId} silently.`);
+    await repository.updateDocument("voice_call_logs", callLogId, {
+      status: "CANCELLED",
+      error: "Voice call gateway disabled",
+    });
+    return;
+  }
+
   const provider = voiceManager.getProvider();
   
   // Update status to CALLING

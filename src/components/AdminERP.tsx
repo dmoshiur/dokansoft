@@ -11,6 +11,7 @@ import { Billing } from './Admin/Billing';
 import { AwardsManagement } from './Admin/AwardsManagement';
 import { AdminInbox } from './Admin/AdminInbox';
 import { AdminManagement } from './Admin/AdminManagement';
+import { NotificationGateways } from './Admin/NotificationGateways';
 import { useERPStore } from '../store';
 import { Toaster, toast } from 'sonner';
 
@@ -36,6 +37,7 @@ const AdminERP: React.FC<AdminERPProps> = ({ onLogout, role }) => {
         {activeTab === 'awards' && <AwardsManagement />}
         {activeTab === 'inbox' && <AdminInbox />}
         {activeTab === 'settings' && <Settings />}
+        {activeTab === 'gateways' && <NotificationGateways />}
         {activeTab === 'adminManagement' && <AdminManagement />}
       </AdminLayout>
       <Toaster position="top-right" richColors />

@@ -8,6 +8,22 @@ export interface EmailOptions {
   text?: string;
 }
 
+export interface EmailGatewayConfig {
+  id: string;
+  type: "smtp" | "api";
+  enabled: boolean;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  fromName?: string;
+  fromEmail?: string;
+  apiProvider?: "sendgrid" | "mailgun" | "brevo" | "generic";
+  apiUrl?: string;
+  apiKey?: string;
+  lastTestedAt?: string;
+}
+
 // Premium responsive HTML template generator
 export function getResponsiveTemplate(title: string, bodyContent: string, ctaHtml = ""): string {
   return `
@@ -196,8 +212,26 @@ export class Mailer {
   }
 
   static async sendEmail(options: EmailOptions): Promise<boolean> {
+    return this.sendEmailWithConfig(options, null);
+  }
+
+  /**
+   * Sends an email using an explicit gateway configuration. This is used by
+   * the NotificationService worker. When `gateway` is null the legacy
+   * settings/process.env fallback is used (kept for backward compatibility).
+   */
+  static async sendEmailWithConfig(
+    options: EmailOptions,
+    gateway: EmailGatewayConfig | null,
+  ): Promise<boolean> {
     try {
-      const { sendMail, fromInfo } = await this.getTransporter();
+      if (gateway?.type === "api") {
+        return await this.sendViaApiProvider(options, gateway);
+      }
+
+      const { sendMail, fromInfo } = gateway
+        ? await this.buildTransporter(gateway)
+        : await this.getTransporter();
       await sendMail({
         from: fromInfo,
         to: options.to,
@@ -207,14 +241,97 @@ export class Mailer {
       });
       console.log(`[Mailer] Email sent successfully to ${options.to}`);
       return true;
-    } catch (e) {
-      console.error("[Mailer] Email sending failed:", e);
+    } catch (e: any) {
+      console.error("[Mailer] Email sending failed:", e.message || e);
       return false;
     }
   }
 
+  private static async buildTransporter(gateway: EmailGatewayConfig) {
+    const port = Number(gateway.port || 587);
+    const host = gateway.host || "";
+    const user = gateway.username || "";
+    const pass = gateway.password || "";
+    const fromName = gateway.fromName || "Lovely Enterprise";
+    const fromEmail = gateway.fromEmail || user;
+
+    if (!host || !user || !pass) {
+      return {
+        sendMail: async (options: any) => {
+          console.log("=========================================");
+          console.log(`[SMTP DEV MODE] To: ${options.to}`);
+          console.log(`[SMTP DEV MODE] Subject: ${options.subject}`);
+          console.log(`[SMTP DEV MODE] Body preview: ${options.text || "HTML only"}`);
+          console.log("=========================================");
+          return { messageId: "dev-mode-mock-id-" + Date.now() };
+        },
+        fromInfo: `"${fromName}" <${fromEmail || "no-reply@lovelyenterprise.com"}>`,
+      };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+
+    return {
+      sendMail: transporter.sendMail.bind(transporter),
+      fromInfo: `"${fromName}" <${fromEmail || user}>`,
+    };
+  }
+
+  private static async sendViaApiProvider(
+    options: EmailOptions,
+    gateway: EmailGatewayConfig,
+  ): Promise<boolean> {
+    const apiKey = gateway.apiKey || "";
+    const apiUrl = gateway.apiUrl || "";
+    const provider = gateway.apiProvider || "generic";
+    if (!apiKey || !apiUrl) {
+      throw new Error("Email API provider is not fully configured");
+    }
+
+    if (provider === "sendgrid") {
+      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: options.to }] }],
+          from: { email: gateway.fromEmail || "no-reply@lovelyenterprise.com", name: gateway.fromName || "Lovely Enterprise" },
+          subject: options.subject,
+          content: [{ type: options.html ? "text/html" : "text/plain", value: options.html || options.text || "" }],
+        }),
+      });
+      return response.ok;
+    }
+
+    // Generic/Mailgun/Brevo-style HTTP API. The endpoint/headers are kept
+    // provider-agnostic so any compatible email API can be plugged in later.
+    const body = JSON.stringify({
+      to: options.to,
+      subject: options.subject,
+      from: `${gateway.fromName || "Lovely Enterprise"} <${gateway.fromEmail || "no-reply@lovelyenterprise.com"}>`,
+      html: options.html,
+      text: options.text || "",
+    });
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+    return response.ok;
+  }
+
   // Admin Login OTP template
-  static async sendAdminLoginOTP(email: string, otpCode: string): Promise<boolean> {
+  static prepareAdminLoginOTP(email: string, otpCode: string): EmailOptions {
     const title = "Admin Login Verification Code";
     const bodyContent = `
       <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 16px;">Admin Verification Request</h2>
@@ -240,16 +357,20 @@ export class Mailer {
       </div>
     `;
     const html = getResponsiveTemplate(title, bodyContent);
-    return this.sendEmail({
+    return {
       to: email,
       subject: "Admin Login Verification Code",
       html,
       text: `Your verification code is:\n${otpCode}\n\nThis code expires in 5 minutes.\n\nSecurity note:\nNever share this code with anyone.`
-    });
+    };
+  }
+
+  static async sendAdminLoginOTP(email: string, otpCode: string): Promise<boolean> {
+    return this.sendEmail(this.prepareAdminLoginOTP(email, otpCode));
   }
 
   // Forgot Password Reset Link template
-  static async sendForgotPasswordEmail(email: string, resetLink: string): Promise<boolean> {
+  static prepareForgotPasswordEmail(email: string, resetLink: string): EmailOptions {
     const title = "Password Reset Request";
     const bodyContent = `
       <h2>Password Reset Instructions</h2>
@@ -263,16 +384,20 @@ export class Mailer {
       </div>
     `;
     const html = getResponsiveTemplate(title, bodyContent, ctaHtml);
-    return this.sendEmail({
+    return {
       to: email,
       subject: "[Security] Password Reset Request - M/S Lovely Enterprise",
       html,
       text: `To reset your password, please visit: ${resetLink}`
-    });
+    };
+  }
+
+  static async sendForgotPasswordEmail(email: string, resetLink: string): Promise<boolean> {
+    return this.sendEmail(this.prepareForgotPasswordEmail(email, resetLink));
   }
 
   // Password Reset Success template
-  static async sendPasswordResetSuccess(email: string): Promise<boolean> {
+  static preparePasswordResetSuccess(email: string): EmailOptions {
     const title = "Password Changed Successfully";
     const bodyContent = `
       <h2>Security Alert: Password Changed</h2>
@@ -281,12 +406,16 @@ export class Mailer {
       <p>If you did this, you can safely ignore this email. If you did not authorize this change, please contact support immediately to lock your account.</p>
     `;
     const html = getResponsiveTemplate(title, bodyContent);
-    return this.sendEmail({
+    return {
       to: email,
       subject: "[Security Alert] Your password was changed successfully",
       html,
       text: "The password for your admin account was successfully changed."
-    });
+    };
+  }
+
+  static async sendPasswordResetSuccess(email: string): Promise<boolean> {
+    return this.sendEmail(this.preparePasswordResetSuccess(email));
   }
 
   // Account Notifications

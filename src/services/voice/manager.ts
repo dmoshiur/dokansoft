@@ -6,6 +6,7 @@ export class VoiceManager {
   private static instance: VoiceManager;
   private provider: IVoiceProvider | null = null;
   private config: VoiceProviderConfig | null = null;
+  private enabled = false; // Voice calls default to OFF.
 
   private constructor() {}
 
@@ -23,10 +24,21 @@ export class VoiceManager {
   }
 
   getProvider(): IVoiceProvider {
+    if (!this.enabled) {
+      throw new Error("Voice call gateway is disabled.");
+    }
     if (!this.provider) {
       throw new Error("Voice provider not initialized. Please configure in settings.");
     }
     return this.provider;
+  }
+
+  setEnabled(enabled: boolean) {
+    this.enabled = !!enabled;
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
   }
 }
 

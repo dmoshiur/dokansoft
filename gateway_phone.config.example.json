@@ -1,0 +1,6 @@
+{
+  "webhook_url": "https://YOUR-DOMAIN.com/api/gateway/bkash/incoming-sms",
+  "webhook_token": "PASTE_WEBHOOK_TOKEN_FROM_ADMIN_PANEL",
+  "sender_filter": "bKash",
+  "poll_interval_seconds": 5
+}

@@ -9,7 +9,8 @@ import {
   ShoppingBag,
   CreditCard,
   PieChart,
-  BarChart
+  BarChart,
+  MessageSquare
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -27,6 +28,7 @@ import {
 
 export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ totalRevenue: 0, activeCustomers: 0, totalSales: 0, inventoryItems: 0 });
+  const [smsBalance, setSmsBalance] = useState<{ balance: number; currency: string }>({ balance: 0, currency: "BDT" });
   const [revenueData, setRevenueData] = useState([]);
   const [activity, setActivity] = useState([]);
 
@@ -34,10 +36,11 @@ export const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('erp_token') || localStorage.getItem('lovely_erp_token');
-        const [statsRes, revenueRes, activityRes] = await Promise.all([
+        const [statsRes, revenueRes, activityRes, smsRes] = await Promise.all([
           fetch('/api/dashboard/stats', { headers: { 'Authorization': `Bearer ${token}` } }),
           fetch('/api/dashboard/revenue', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/dashboard/activity', { headers: { 'Authorization': `Bearer ${token}` } })
+          fetch('/api/dashboard/activity', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/gateways/sms/balance', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
         if (statsRes.status === 401 || statsRes.status === 403 || revenueRes.status === 401 || revenueRes.status === 403 || activityRes.status === 401 || activityRes.status === 403) {
@@ -54,6 +57,7 @@ export const Dashboard: React.FC = () => {
         setStats(await statsRes.json());
         setRevenueData(await revenueRes.json());
         setActivity(await activityRes.json());
+        if (smsRes.ok) setSmsBalance(await smsRes.json());
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
       }
@@ -98,6 +102,29 @@ export const Dashboard: React.FC = () => {
           <button className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-200">
             View Analytics
           </button>
+        </div>
+      </div>
+
+      {/* SMS Balance widget (cached server-side, refreshed every 15 min) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center">
+            <MessageSquare size={24} className="text-sky-600" />
+          </div>
+          <div>
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">SMS Balance</p>
+            <p className="text-2xl font-black text-slate-900">{smsBalance.balance.toLocaleString()} {smsBalance.currency || "BDT"}</p>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center">
+            <TrendingUp size={24} className="text-slate-600" />
+          </div>
+          <div>
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Gateway Mode</p>
+            <p className="text-sm font-black text-slate-900">Queue-based async</p>
+            <p className="text-[10px] text-slate-400">No blocking gateway calls</p>
+          </div>
         </div>
       </div>
 

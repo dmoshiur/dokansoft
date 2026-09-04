@@ -14,6 +14,7 @@ import { Error404 } from "./components/Error404";
 import { Error500 } from "./components/Error500";
 import { Account } from "./components/Account";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PwaInstall } from "./components/PwaInstall";
 import { Toaster } from "sonner";
 
 export default function App() {
@@ -59,6 +60,29 @@ export default function App() {
     setIsInitializing(false);
   }, []);
 
+  // PWA persistent login: validate the stored JWT on startup so an installed
+  // app never lands on the login page while the token is still valid.
+  useEffect(() => {
+    const token = localStorage.getItem('erp_token') || localStorage.getItem('lovely_erp_token');
+    if (!token) return;
+    fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          localStorage.removeItem('erp_token');
+          localStorage.removeItem('lovely_erp_token');
+          localStorage.removeItem('erp_user');
+          setSessionRole('public');
+          setActiveCustomerId(null);
+          setCurrentUserEmail(null);
+        }
+      })
+      .catch(() => {
+        // Network error: keep the stored session; the app still works offline-ish.
+      });
+  }, []);
+
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
@@ -80,7 +104,7 @@ export default function App() {
   useEffect(() => {
     if (isResetPasswordPath || isInitializing) return;
 
-    const publicPaths = ['/', '/login', '/404', '/500'];
+    const publicPaths = ['/', '/login', '/pwa', '/404', '/500'];
 
     if (currentPath === '/') {
       // Allow all users to access the home page
@@ -88,16 +112,20 @@ export default function App() {
       if (sessionRole === 'admin') {
         navigateTo('/admin');
       } else if (sessionRole === 'user') {
-        navigateTo('/dashboard');
+        navigateTo('/dash');
       }
     } else if (currentPath === '/admin') {
       if (sessionRole !== 'admin') {
         navigateTo('/login');
       }
-    } else if (currentPath === '/dashboard' || currentPath === '/customer/dashboard') {
-      if (sessionRole !== 'user') {
+    } else if (currentPath === '/dashboard' || currentPath === '/customer/dashboard' || currentPath === '/dash') {
+      if (sessionRole === 'admin') {
+        navigateTo('/admin');
+      } else if (sessionRole !== 'user') {
         navigateTo('/login');
       }
+    } else if (currentPath === '/pwa') {
+      // Public install page; nothing to guard.
     } else if (currentPath === '/account') {
       if (sessionRole !== 'user' && sessionRole !== 'admin') {
         navigateTo('/login');
@@ -129,7 +157,7 @@ export default function App() {
     if (user.role === 'admin') {
       navigateTo('/admin');
     } else {
-      navigateTo('/dashboard');
+      navigateTo('/dash');
     }
   };
 
@@ -185,14 +213,19 @@ export default function App() {
           />
         )}
 
-        {/* '/dashboard' Route: Customer Portal */}
-        {(currentPath === "/dashboard" || currentPath === "/customer/dashboard") && sessionRole === "user" && activeCustomerId && (
+        {/* '/dashboard' / '/dash' Route: Customer Portal (PWA start route) */}
+        {(currentPath === "/dashboard" || currentPath === "/customer/dashboard" || currentPath === "/dash") && sessionRole === "user" && activeCustomerId && (
           <CustomerPortal
             state={store.state}
             customerId={activeCustomerId}
             onLogout={handleLogout}
             onSubmitPayment={store.submitPortalPayment}
           />
+        )}
+
+        {/* '/pwa' Route: PWA install page */}
+        {currentPath === "/pwa" && (
+          <PwaInstall />
         )}
 
         {/* '/account' Route: User account details */}

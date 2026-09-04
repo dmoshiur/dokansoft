@@ -14,9 +14,16 @@ import { Mailer, getResponsiveTemplate } from "./src/services/mailer.ts";
 import { BackupService, convertToCSV } from "./src/services/db/backup.ts";
 import { voiceManager } from "./src/services/voice/manager.ts";
 import { callQueue, startWorker } from "./src/services/queue/queue.ts";
+import { notificationService } from "./src/services/notifications/notificationService.ts";
+import { smsNetBdService } from "./src/services/gateways/smsNetBd.ts";
+import { bkashPersonalGateway, BkashPersonalConfig } from "./src/services/gateways/bkashPersonal.ts";
+import { EmailGatewayConfig } from "./src/services/mailer.ts";
+import { encryptSecret, decryptSecret } from "./src/services/security/gatewaySecrets.ts";
+import { startGatewayWorkers, refreshVoiceToggleFromConfig } from "./src/services/gateways/workers.ts";
 import { authenticateToken, isAdmin } from "./src/middleware/auth.ts";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secure_jwt_key_2026';
+const configTokenPlaceholder = "••••••";
 
 // Global Rate Limit
 const limiter = rateLimit({
@@ -30,6 +37,13 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
   message: { error: "Too many login/OTP attempts. Please wait 15 minutes before retrying." }
+});
+
+// Rate limit for bKash personal webhook (protects against replay/flooding).
+const bkashWebhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: "Too many incoming SMS webhook requests. Try again shortly." }
 });
 
 async function startServer() {
@@ -61,6 +75,9 @@ async function startServer() {
   console.error("[Queue Error]", err);
 }
   
+  // Start async gateway workers. These never block request cycles.
+  startGatewayWorkers();
+  
   // Load settings and init voice provider
   const settings = await repository.getSettings();
   try {
@@ -75,6 +92,7 @@ async function startServer() {
   } catch (err: any) {
     console.error("[Voice Init Error] Failed loading config:", err.message);
   }
+  await refreshVoiceToggleFromConfig();
 
   // --- Auth Routes ---
   
@@ -89,32 +107,14 @@ async function startServer() {
       const emailLower = email.trim().toLowerCase();
       console.log(`[Auth - Login] Login request received for email: ${emailLower}`);
 
-      // Case A: Administrative Account
+      // Case A: Administrative Account (password only, no login OTP)
       if (emailLower === "mdmoshiurrahmanmohi1@gmail.com") {
         const settingsObj: any = await repository.getSettings();
         const adminPass = settingsObj.adminPasswordOverride || process.env.ADMIN_PASSWORD || 'admin123';
         if (password === adminPass) {
-          try {
-            console.log(`[Admin Auth] Credentials verified. Generating secure 6-digit OTP...`);
-            const otpRecord = await OTPStore.generateOTP(emailLower);
-            
-            console.log(`[Admin Auth] OTP generated successfully. Attempting SMTP delivery to ${emailLower}...`);
-            try {
-              await Mailer.sendAdminLoginOTP(emailLower, otpRecord.code);
-            } catch (smtpErr) {
-              console.warn(`[Admin Auth] SMTP delivery failed, falling back:`, smtpErr);
-            }
-            
-            console.log(`[Admin Auth] Login OTP successfully handled.`);
-            return res.json({ 
-              otpRequired: true, 
-              email: emailLower,
-              message: "Verification code sent." 
-            });
-          } catch (err: any) {
-            console.error(`[Admin Auth Error] OTP generation failed:`, err);
-            return res.status(500).json({ error: "Failed to generate OTP." });
-          }
+          console.log(`[Admin Auth] Credentials verified. Issuing JWT directly (login OTP removed).`);
+          const token = jwt.sign({ email: emailLower, role: 'admin', adminRole: 'Super Admin' }, JWT_SECRET, { expiresIn: '24h' });
+          return res.json({ token, user: { email: emailLower, role: 'admin', adminRole: 'Super Admin' } });
         } else {
           return res.status(401).json({ error: "Invalid credentials" });
         }
@@ -129,20 +129,9 @@ async function startServer() {
             return res.status(403).json({ error: "Your account has been disabled. Contact Super Admin." });
           }
           if (customAdmin.password === password) {
-            console.log(`[Custom Admin Auth] Credentials verified for ${emailLower}. Generating secure OTP...`);
-            const otpRecord = await OTPStore.generateOTP(emailLower);
-            
-            try {
-              await Mailer.sendAdminLoginOTP(emailLower, otpRecord.code);
-            } catch (smtpErr) {
-              console.warn(`[Custom Admin Auth] SMTP delivery failed, falling back:`, smtpErr);
-            }
-            
-            return res.json({ 
-              otpRequired: true, 
-              email: emailLower,
-              message: "Verification code sent." 
-            });
+            console.log(`[Custom Admin Auth] Credentials verified for ${emailLower}. Issuing JWT directly.`);
+            const token = jwt.sign({ email: emailLower, role: 'admin', adminRole: customAdmin.role }, JWT_SECRET, { expiresIn: '24h' });
+            return res.json({ token, user: { email: emailLower, role: 'admin', adminRole: customAdmin.role } });
           } else {
             return res.status(401).json({ error: "Invalid credentials" });
           }
@@ -151,28 +140,15 @@ async function startServer() {
         console.error(`[Custom Admin Auth Query Error] Failed to verify custom admin:`, err);
       }
 
-      // Case B: Customer / User Account
+      // Case B: Customer / User Account (email + password login)
       try {
         const customers = await repository.getCustomers();
         const customer = customers.find((c: any) => c.email && c.email.trim().toLowerCase() === emailLower);
         if (customer) {
           if (customer.password === password) {
-            console.log(`[Customer Auth] Credentials verified for ${emailLower}. Generating secure OTP...`);
-            const otpRecord = await OTPStore.generateOTP(emailLower);
-            
-            console.log(`[Customer Auth] OTP generated successfully. Attempting SMTP delivery to ${emailLower}...`);
-            try {
-              await Mailer.sendAdminLoginOTP(emailLower, otpRecord.code);
-            } catch (smtpErr) {
-              console.warn(`[Customer Auth] SMTP delivery failed, falling back:`, smtpErr);
-            }
-            
-            console.log(`[Customer Auth] Login OTP successfully handled.`);
-            return res.json({
-              otpRequired: true,
-              email: emailLower,
-              message: "Verification code sent."
-            });
+            console.log(`[Customer Auth] Credentials verified for ${emailLower}. Issuing JWT directly.`);
+            const token = jwt.sign({ email: emailLower, role: 'user', customerId: customer.id }, JWT_SECRET, { expiresIn: '24h' });
+            return res.json({ token, user: { email: emailLower, role: 'user', customerId: customer.id } });
           } else {
             return res.status(401).json({ error: "Invalid credentials" });
           }
@@ -188,6 +164,19 @@ async function startServer() {
       console.error(`[Global Auth Login Error] Unhandled exception occurred:`, globalErr);
       return res.status(500).json({ error: globalErr.message || "An unexpected error occurred during login." });
     }
+  });
+
+  // Current session check (used by PWA to restore persistent login/session).
+  app.get("/api/auth/me", authenticateToken, async (req, res) => {
+    res.json({
+      success: true,
+      user: {
+        email: (req as any).user?.email,
+        role: (req as any).user?.role,
+        adminRole: (req as any).user?.adminRole,
+        customerId: (req as any).user?.customerId,
+      },
+    });
   });
 
   // Step 2: Verification of OTP & JWT token issuance
@@ -345,11 +334,11 @@ async function startServer() {
       console.log(`[Auth - Resend] Cooldown passed. Regenerating secure OTP for ${emailLower}...`);
       const otpRecord = await OTPStore.generateOTP(emailLower);
       
-      console.log(`[Auth - Resend] Attempting SMTP dispatch of regenerated OTP to ${emailLower}...`);
-      await Mailer.sendAdminLoginOTP(emailLower, otpRecord.code);
+      console.log(`[Auth - Resend] Queuing regenerated OTP delivery to ${emailLower}...`);
+      await notificationService.enqueueEmail(Mailer.prepareAdminLoginOTP(emailLower, otpRecord.code));
       
       await OTPStore.updateResendTime(emailLower);
-      console.log(`[Auth - Resend Success] Regenerated secure OTP dispatched successfully to ${emailLower}.`);
+      console.log(`[Auth - Resend Success] Regenerated secure OTP queued for ${emailLower}.`);
       res.json({ success: true, message: "A new secure verification code was successfully sent." });
     } catch (err: any) {
       console.error(`[Auth - Resend Error] Failed to regenerate or send OTP for ${emailLower}:`, err);
@@ -405,22 +394,40 @@ async function startServer() {
   // Step 4: Forgot Password Request
   app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
     const { email } = req.body;
-    if (email !== "mdmoshiurrahmanmohi1@gmail.com") {
-      // Return ambiguous success for security against email harvesting
-      return res.json({ success: true, message: "If the email is correct, a recovery link will arrive shortly." });
-    }
+    if (!email) return res.status(400).json({ error: "Email is required." });
+    const emailLower = email.trim().toLowerCase();
+
+    const reply = {
+      success: true,
+      message: "If the email is correct, a recovery link will arrive shortly.",
+    };
 
     try {
-      // Issue secure reset token valid for 1 hour
-      const resetToken = jwt.sign({ email, type: 'reset' }, JWT_SECRET, { expiresIn: '1h' });
+      // Determine if the email belongs to the super admin, a custom admin,
+      // or a customer before issuing a token. Unregistered emails get the
+      // same generic response to avoid account enumeration.
+      const db = getDb();
+      const customAdmin = await db.collection("admins").findOne({ email: emailLower });
+      const customers = await repository.getCustomers();
+      const customer = customers.find(
+        (c: any) => c.email && c.email.trim().toLowerCase() === emailLower,
+      );
+      const isSuperAdmin = emailLower === "mdmoshiurrahmanmohi1@gmail.com";
+      if (!isSuperAdmin && !customAdmin && !customer) {
+        return res.json(reply);
+      }
+
+      const resetToken = jwt.sign({ email: emailLower, type: 'reset' }, JWT_SECRET, { expiresIn: '1h' });
       const origin = req.headers.referer || req.headers.origin || `https://${req.headers.host}`;
-      const cleanOrigin = origin.split("/admin")[0]; // sanitize route path
+      const cleanOrigin = (origin || "").split("/admin")[0].split("/reset-password")[0];
       const resetLink = `${cleanOrigin}/admin/reset-password?token=${resetToken}`;
 
-      await Mailer.sendForgotPasswordEmail(email, resetLink);
-      res.json({ success: true, message: "A recovery link has been successfully dispatched to your inbox." });
+      const resetEmail = Mailer.prepareForgotPasswordEmail(emailLower, resetLink);
+      await notificationService.enqueueEmail(resetEmail);
+      res.json(reply);
     } catch (e: any) {
-      res.status(500).json({ error: "Could not deliver recovery email. Please check server settings." });
+      console.error("[Auth - Forgot Password] Error:", e.message);
+      res.json(reply);
     }
   });
 
@@ -429,19 +436,39 @@ async function startServer() {
     const { token, newPassword } = req.body;
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
-      if (decoded.type !== 'reset' || decoded.email !== "mdmoshiurrahmanmohi1@gmail.com") {
+      if (decoded.type !== 'reset') {
         return res.status(400).json({ error: "Expired or invalid security token." });
       }
+      const emailLower = String(decoded.email || "").toLowerCase();
 
-      // Persist the password override in settings
-      const settingsObj: any = await repository.getSettings();
-      await repository.saveSettings({
-        ...settingsObj,
-        adminPasswordOverride: newPassword
-      });
+      if (emailLower === "mdmoshiurrahmanmohi1@gmail.com") {
+        // Persist the password override in settings
+        const settingsObj: any = await repository.getSettings();
+        await repository.saveSettings({
+          ...settingsObj,
+          adminPasswordOverride: newPassword
+        });
+      } else {
+        const db = getDb();
+        const customAdmin = await db.collection("admins").findOne({ email: emailLower });
+        if (customAdmin) {
+          await db.collection("admins").updateOne(
+            { id: customAdmin.id },
+            { $set: { password: newPassword, password_hash: newPassword, updatedAt: new Date().toISOString() } },
+          );
+        } else {
+          const customers = await repository.getCustomers();
+          const customer = customers.find((c: any) => c.email && c.email.trim().toLowerCase() === emailLower);
+          if (customer) {
+            await repository.updateDocument("customers", customer.id, { password: newPassword });
+          } else {
+            return res.status(400).json({ error: "Expired or invalid security token." });
+          }
+        }
+      }
 
-      // Send a premium alert email about the successful change
-      await Mailer.sendPasswordResetSuccess(decoded.email);
+      // Send a premium alert email about the successful change (queued/async)
+      await notificationService.enqueueEmail(Mailer.preparePasswordResetSuccess(emailLower));
 
       res.json({ success: true, message: "Your password has been changed successfully. You may now log in." });
     } catch (err) {
@@ -1390,6 +1417,11 @@ async function startServer() {
       const awards = await db.collection("awards").find().toArray();
       const globalSettingsDoc = await db.collection("settings").findOne({ key: "global" });
       const globalSettings = globalSettingsDoc ? globalSettingsDoc.value : {};
+      const bkashCfg = await bkashPersonalGateway.getConfig().catch(() => ({
+        enabled: false,
+        bkashNumber: "",
+        amountTolerance: 0,
+      }));
 
       const mapId = (arr: any[]) => arr.map(item => {
         const { _id, ...rest } = item;
@@ -1403,7 +1435,12 @@ async function startServer() {
         certificates: mapId(certificates),
         gallery: mapId(gallery),
         awards: mapId(awards),
-        settings: globalSettings
+        settings: globalSettings,
+        paymentSettings: {
+          bkashEnabled: !!bkashCfg.enabled,
+          bkashPersonalNumber: bkashCfg.bkashNumber || "",
+          bkashAmountTolerance: bkashCfg.amountTolerance || 0,
+        }
       });
     } catch (err: any) {
       console.error("[GET /api/public/state] Error:", err);
@@ -1483,15 +1520,15 @@ async function startServer() {
 
       for (const recipient of adminEmails) {
         try {
-          await Mailer.sendEmail({
+          await notificationService.enqueueEmail({
             to: recipient,
             subject: `[Contact Inquiry] ${subject || "New Customer Message"}`,
             html: htmlTemplate,
             text: `New Contact Message Received:\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}`
           });
-          console.log(`[Contact Message] Dispatched email alert successfully to admin: ${recipient}`);
-        } catch (mailErr) {
-          console.warn(`[Contact Message] Failed to send email alert to admin: ${recipient}`, mailErr);
+          console.log(`[Contact Message] Queued email alert for admin: ${recipient}`);
+        } catch (mailErr: any) {
+          console.warn(`[Contact Message] Failed to queue email alert to admin: ${recipient}`, mailErr.message);
         }
       }
 
@@ -1554,7 +1591,7 @@ async function startServer() {
         return res.status(400).json({ error: "Sender email is missing on this message." });
       }
 
-      await Mailer.sendEmail({
+      await notificationService.enqueueEmail({
         to: msg.email,
         subject: `Re: ${msg.subject || 'Your inquiry'}`,
         text: replyText,
@@ -1970,6 +2007,337 @@ async function startServer() {
     }
   });
 
+  // --- Notification & Gateway Settings Endpoints ---
+  const maskGatewayConfig = async (key: string, fields: string[]) => {
+    const config = await repository.getGatewayConfig<any>(key);
+    if (!config) return { id: key, enabled: false, lastTestedAt: "" };
+    const masked = { ...config };
+    for (const f of fields) {
+      if (masked[f]) masked[f] = "••••••••";
+    }
+    return masked;
+  };
+
+  app.get("/api/gateways/status", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const sms = await repository.getGatewayConfig<any>("sms_net_bd");
+      const email = await repository.getGatewayConfig<any>("email_gateway");
+      const voice = await repository.getGatewayConfig<any>("voice_gateway");
+      const payment = await repository.getGatewayConfig<any>("bkash_personal");
+      res.json({
+        sms: { enabled: !!sms?.enabled, lastTestedAt: sms?.lastTestedAt || "" },
+        email: { enabled: !!email?.enabled, lastTestedAt: email?.lastTestedAt || "" },
+        voice: { enabled: !!voice?.enabled, lastTestedAt: voice?.lastTestedAt || "" },
+        payment: { enabled: !!payment?.enabled, lastTestedAt: payment?.lastTestedAt || "" },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/sms/config", authenticateToken, isAdmin, async (_req, res) => {
+    const config = await smsNetBdService.getConfig();
+    res.json({ ...config, apiKey: config.apiKey ? "••••••••" : "" });
+  });
+
+  app.post("/api/gateways/sms/config", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const body = req.body;
+      const config = await smsNetBdService.saveConfig({
+        enabled: body.enabled === true,
+        apiKey: body.apiKey || undefined,
+        senderId: body.senderId || undefined,
+        defaultContentId: body.defaultContentId || undefined,
+      });
+      res.json({ success: true, config: { ...config, apiKey: config.apiKey ? "••••••••" : "" } });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/sms/test", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const { to, apiKey, senderId, contentId } = req.body;
+      if (!to) return res.status(400).json({ error: "Test phone number is required." });
+      const config = await smsNetBdService.getConfig();
+      const result = await smsNetBdService.send(
+        {
+          to,
+          msg: "This is a test SMS from Lovely Enterprise ERP. If you can read this, sms.net.bd is configured correctly.",
+          senderId: senderId || config.senderId || undefined,
+          contentId: contentId || config.defaultContentId || undefined,
+        },
+        {
+          // Allow testing before saving: use form values when provided and not masked.
+          enabled: true,
+          apiKey:
+            apiKey && apiKey !== "••••••" && apiKey !== "••••••••"
+              ? apiKey
+              : config.apiKey,
+          senderId: senderId || config.senderId,
+          defaultContentId: contentId || config.defaultContentId,
+        },
+      );
+      await smsNetBdService.saveConfig({ lastTestedAt: new Date().toISOString() });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/sms/logs", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const logs = await smsNetBdService.getLogs();
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/sms/report-sync", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const result = await smsNetBdService.syncReports();
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/sms/balance", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const balance = await smsNetBdService.getBalance();
+      res.json(balance);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/email/config", authenticateToken, isAdmin, async (_req, res) => {
+    const config = await repository.getGatewayConfig<EmailGatewayConfig>("email_gateway");
+    res.json({
+      id: "email_gateway",
+      type: "smtp",
+      enabled: true,
+      apiProvider: "generic",
+      ...(config || {}),
+      password: config?.password ? "••••••••" : "",
+      apiKey: config?.apiKey ? "••••••••" : "",
+    });
+  });
+
+  app.post("/api/gateways/email/config", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const body = req.body;
+      const rawCurrent = await repository.getGatewayConfig<EmailGatewayConfig>("email_gateway");
+      const current: EmailGatewayConfig = {
+        id: "email_gateway",
+        type: (rawCurrent?.type as any) || "smtp",
+        enabled: rawCurrent?.enabled === undefined ? true : !!rawCurrent?.enabled,
+        ...(rawCurrent || {}),
+        password: decryptSecret(rawCurrent?.password || ""),
+        apiKey: decryptSecret(rawCurrent?.apiKey || ""),
+      };
+      const next: any = {
+        id: "email_gateway",
+        type: body.type === "api" ? "api" : "smtp",
+        enabled: body.enabled === undefined ? !!current?.enabled : body.enabled === true,
+        host: body.host || current?.host || "",
+        port: Number(body.port || current?.port || 587),
+        username: body.username || current?.username || "",
+        password:
+          body.password && body.password !== "••••••••" && body.password !== "••••••"
+            ? encryptSecret(body.password)
+            : rawCurrent?.password || encryptSecret(current.password || ""),
+        fromName: body.fromName || current?.fromName || "Lovely Enterprise",
+        fromEmail: body.fromEmail || current?.fromEmail || "",
+        apiProvider: body.apiProvider || current?.apiProvider || "generic",
+        apiUrl: body.apiUrl || current?.apiUrl || "",
+        apiKey:
+          body.apiKey && body.apiKey !== "••••••••" && body.apiKey !== "••••••"
+            ? encryptSecret(body.apiKey)
+            : rawCurrent?.apiKey || encryptSecret(current.apiKey || ""),
+        lastTestedAt: current?.lastTestedAt || "",
+      };
+      await repository.saveGatewayConfig(next);
+      res.json({ success: true, config: { ...next, password: "••••••••", apiKey: "••••••••" } });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/email/test", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const { to, type, host, port, username, password, fromName, fromEmail, apiProvider, apiUrl, apiKey } = req.body;
+      if (!to) return res.status(400).json({ error: "Recipient email is required." });
+      const rawCurrent = await repository.getGatewayConfig<EmailGatewayConfig>("email_gateway");
+      const current: EmailGatewayConfig = {
+        id: "email_gateway",
+        type: (rawCurrent?.type as any) || "smtp",
+        enabled: rawCurrent?.enabled === undefined ? true : !!rawCurrent?.enabled,
+        ...(rawCurrent || {}),
+        password: decryptSecret(rawCurrent?.password || ""),
+        apiKey: decryptSecret(rawCurrent?.apiKey || ""),
+      };
+      const emailGateway: EmailGatewayConfig = {
+        id: "email_gateway",
+        type: type === "api" ? "api" : "smtp",
+        enabled: true,
+        ...(current || {}),
+        ...(host ? { host } : {}),
+        ...(port ? { port: Number(port) } : {}),
+        ...(username ? { username } : {}),
+        ...(password && password !== "••••••" && password !== "••••••••" ? { password } : {}),
+        ...(fromName ? { fromName } : {}),
+        ...(fromEmail ? { fromEmail } : {}),
+        ...(apiProvider ? { apiProvider } : {}),
+        ...(apiUrl ? { apiUrl } : {}),
+        ...(apiKey && apiKey !== "••••••" && apiKey !== "••••••••" ? { apiKey } : {}),
+      };
+      const ok = await Mailer.sendEmailWithConfig({
+        to,
+        subject: "[Lovely ERP] SMTP/Email Gateway Test",
+        html: "<h2>Email gateway test</h2><p>If you can read this, your email gateway is configured correctly.</p>",
+        text: "Email gateway test. If you can read this, your email gateway is configured correctly.",
+      }, emailGateway);
+      await repository.saveGatewayConfig({ ...emailGateway, lastTestedAt: new Date().toISOString() });
+      res.json({ success: ok });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/voice/config", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const config = await repository.getGatewayConfig<any>("voice_gateway");
+      res.json({ id: "voice_gateway", enabled: !!config?.enabled, lastTestedAt: config?.lastTestedAt || "", provider: "InfoSoft/IVR placeholder" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/voice/config", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const body = req.body;
+      const current = await repository.getGatewayConfig<any>("voice_gateway");
+      const next = {
+        id: "voice_gateway",
+        enabled: body.enabled === true,
+        provider: body.provider || current?.provider || "InfoSoft/IVR placeholder",
+        lastTestedAt: current?.lastTestedAt || "",
+      };
+      await repository.saveGatewayConfig(next);
+      voiceManager.setEnabled(next.enabled);
+      res.json({ success: true, config: next });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/payment/config", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const config = await bkashPersonalGateway.getConfig();
+      const origin = `${req.protocol}://${req.get("host")}`;
+      res.json({
+        ...config,
+        webhookToken: config.webhookToken ? config.webhookToken.slice(0, 8) + "••••••" + config.webhookToken.slice(-4) : "",
+        webhookUrl: `${origin}/api/gateway/bkash/incoming-sms`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/payment/config", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const body = req.body;
+      const current = await bkashPersonalGateway.getConfig();
+      if (body.webhookUrl && !/^https:\/\//i.test(body.webhookUrl)) {
+        return res.status(400).json({ error: "Webhook URL must use HTTPS." });
+      }
+      if (body.webhookToken && body.webhookToken !== "••••••" && body.webhookToken !== configTokenPlaceholder) {
+        return res.status(400).json({ error: "Webhook token cannot be changed manually; use the regenerate button." });
+      }
+      const config = await bkashPersonalGateway.saveConfig({
+        enabled: body.enabled === undefined ? current.enabled : body.enabled === true,
+        bkashNumber: body.bkashNumber || current.bkashNumber,
+        amountTolerance: Number(body.amountTolerance ?? current.amountTolerance ?? 0),
+        pendingOrderExpireMinutes: Number(body.pendingOrderExpireMinutes ?? current.pendingOrderExpireMinutes ?? 30),
+      });
+      res.json({ success: true, config: { ...config, webhookToken: "••••••" } });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/payment/regenerate-token", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const token = await bkashPersonalGateway.generateToken();
+      res.json({ success: true, webhookToken: token });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/payment/incoming-logs", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      res.json(await bkashPersonalGateway.getIncomingLogs());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/payment/unmatched", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      res.json(await bkashPersonalGateway.getUnmatched());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gateways/payment/unmatched/:id/match", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const { paymentId } = req.body;
+      if (!paymentId) return res.status(400).json({ error: "paymentId is required." });
+      const result = await bkashPersonalGateway.manualMatch(req.params.id, paymentId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/gateways/queue", authenticateToken, isAdmin, async (_req, res) => {
+    try {
+      const queue = await notificationService.listQueue();
+      res.json(queue.slice(0, 300));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Public bKash Personal webhook (authenticated by bearer token).
+  app.post("/api/gateway/bkash/incoming-sms", bkashWebhookLimiter, async (req, res) => {
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
+    const config = await bkashPersonalGateway.getConfig();
+    if (!config.enabled) {
+      return res.status(403).json({ error: "bKash Personal gateway is disabled." });
+    }
+    if (!token || token !== config.webhookToken) {
+      return res.status(401).json({ error: "Invalid or missing webhook token." });
+    }
+    if (!req.body?.raw_message) {
+      return res.status(400).json({ error: "raw_message is required." });
+    }
+    try {
+      const result = await bkashPersonalGateway.processIncoming(req.body);
+      res.status(200).json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // --- API 404 Route Handler ---
   app.all("/api/*", (req, res) => {
     res.status(404).json({ error: "API Route Not Found" });
@@ -1991,7 +2359,7 @@ async function startServer() {
   // --- Vite / Static ---
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, host: "0.0.0.0", allowedHosts: true },
       appType: "spa",
     });
     app.use(vite.middlewares);

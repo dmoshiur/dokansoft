@@ -17,7 +17,8 @@ import {
   Receipt,
   Trophy,
   Inbox,
-  UserCog
+  UserCog,
+  Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -42,6 +43,7 @@ const getMenuItems = (role: string) => {
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
     { id: 'awards', label: 'Awards Management', icon: Trophy },
     { id: 'inbox', label: 'Admin Inbox', icon: Inbox },
+    { id: 'gateways', label: 'Notification Gateways', icon: Share2 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

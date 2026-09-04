@@ -102,6 +102,20 @@ export class Repository {
     await this.updateDocument("api_configs", "infosoft_config", config);
   }
 
+  // Dedicated gateway settings table (encrypted-at-rest protected by
+  // the server's own secret; never stored in client-side source code).
+  async getGatewayConfig<T = any>(key: string): Promise<T | null> {
+    return this.getDocument<T>("gateway_configs", key);
+  }
+
+  async saveGatewayConfig(config: any): Promise<void> {
+    await this.updateDocument("gateway_configs", config.id || "gateway", config);
+  }
+
+  async listGatewayConfigs(): Promise<any[]> {
+    return this.getCollection<any>("gateway_configs");
+  }
+
   async getSettings(): Promise<Partial<FullState>> {
     const db = getDb();
     const doc = await db.collection("settings").findOne({ key: "global" });
